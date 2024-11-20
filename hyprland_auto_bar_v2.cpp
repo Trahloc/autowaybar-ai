@@ -8,6 +8,7 @@ using namespace std::chrono_literals;
 
 const std::string WAYBAR_CONFIG = "~/dotfiles/waybar/themes/ml4w/config";
 const std::string WAYBAR_STYLE = "~/dotfiles/waybar/themes/ml4w/mixed/style.css";
+constexpr int THRESHOLD = 40;
 
 auto getCursorPos() -> std::pair<int, int> {
 
@@ -57,13 +58,13 @@ auto main() -> int {
 
             auto temp = getCursorPos();
 
-            while (temp.second < 35) {
+            while (temp.second < THRESHOLD) {
                 std::this_thread::sleep_for(80ms);
                 temp = getCursorPos();
             }
 
         }
-        else if (open && root_y > 35) {
+        else if (open && root_y > THRESHOLD) {
             std::cout << "[+] It should die \n";
             system("killall waybar");
             open = false;
