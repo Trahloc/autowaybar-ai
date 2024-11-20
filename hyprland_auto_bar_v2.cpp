@@ -40,7 +40,7 @@ auto getCursorPos() -> std::pair<int, int> {
 
 auto main() -> int {
 
-    bool open = true;
+    bool open = false;
     std::string command = "hyprctl dispatch exec \"waybar -c " + WAYBAR_CONFIG + " -s " + 
     WAYBAR_STYLE + "\"";
 
@@ -49,21 +49,26 @@ auto main() -> int {
 
         std::cout << "[+] Found mouse at position at: " << root_x << ", " << root_y << "\n";
 
-        if (open && root_y > 35) {
+        // si no se ve,  
+        if (!open && root_y < 5) {
+            std::cout << "[+] opening it\n";
+            system(command.c_str());
+            open = true;
+
+            auto temp = getCursorPos();
+
+            while (temp.second < 35) {
+                std::this_thread::sleep_for(80ms);
+                temp = getCursorPos();
+            }
+
+        }
+        else if (open && root_y > 35) {
             std::cout << "[+] It should die \n";
             system("killall waybar");
             open = false;
         }
-        else if (!open && root_y < 35) {
-            std::cout << "[+] opening it\n";
-            system(command.c_str());
-            open = true;
-        }
-        else {
-            std::cout << "[+] everything okai \n";
-        }
 
-
-        std::this_thread::sleep_for(50ms);
+        std::this_thread::sleep_for(80ms);
     }
 }
