@@ -1,13 +1,19 @@
-#include <cstdio>
 #include <iostream>
-#include <istream>
-#include <sstream>
+#include <filesystem>
+#include <array>
 #include <thread>
 
 using namespace std::chrono_literals;
+namespace fs = std::filesystem;
 
 constexpr int THRESHOLD = 43;
 
+const std::array<fs::path, 2> possible_config_lookup = {
+    "$HOME/.config/ml4w/settings/waybar-theme.sh",
+    "$HOME/.cache/.themestyle.sh"
+};
+
+// returns cursor pos by a hyprland command
 auto getCursorPos() -> std::pair<int, int> {
 
     FILE* pipe = popen("hyprctl cursorpos", "r");
