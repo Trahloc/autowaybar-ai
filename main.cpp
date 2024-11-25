@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <json/json.h>
 #include <filesystem>
@@ -11,13 +12,19 @@
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
-constexpr  int THRESHOLD     = 43;
-const fs::path HOMEDIR       = std::string(std::getenv("HOME"));
+constexpr int THRESHOLD = 43;
+const fs::path HOMEDIR = std::string(std::getenv("HOME"));
 const fs::path WAYBAR_BASE_CONFIG = HOMEDIR / ".config/waybar/themes";
 
 const std::array<fs::path, 2> possible_config_lookup = {
     HOMEDIR / ".config/ml4w/settings/waybar-theme.sh",
     HOMEDIR / ".cache/.themestyle.sh"
+};
+
+// pack basic info
+struct screen_info_t {
+    std::vector<std::string> names;
+    int x_delimiter;
 };
 
 // creates a pipe, executes de command and returns output as a string
@@ -42,22 +49,33 @@ auto execCommand(const std::string& command) -> std::string {
 }
 
 // returns a vector with the available monitor names
-auto getMonitors() -> std::vector<std::string> {
+auto getMonitorsInfo() -> screen_info_t {
     const std::string cmd = "hyprctl monitors -j";
     std::istringstream stream(execCommand(cmd));
 
     Json::Value data;
     stream >> data;
     
-    std::vector<std::string> result;
-    result.reserve(2);
+    screen_info_t monitors;
+    monitors.names.reserve(2);
 
+    // fetch all monitors info
     for (int i = 0; i < data.size(); ++i) {
-        if (!data[i]["name"].empty())
-            result.push_back(data[i]["name"].asString());
+
+        // names
+        if (!data[i]["name"].empty()) {
+            monitors.names.push_back(data[i]["name"].asString());
+        }
+
+        // x delimiter
+        if (data[i]["x"].asInt64() == 0 && data[i]["y"].asInt() == 0) {
+            std::cout << "[+] Found monitor at 0,0" << std::endl;
+            monitors.x_delimiter = data[i]["width"].asInt();
+            std::cout << "[+] Horizontal delimiter: " << monitors.x_delimiter << "\n";
+        }
     }
 
-    return result;
+    return monitors;
 }
 
 // returns cursor x and y coords
@@ -151,29 +169,30 @@ auto getCurrentML4WConfig() -> fs::path {
     return {};
 }
 
-auto hideUnfocusedMonitor() -> void {
-
-    auto waybar_config = getCurrentML4WConfig();
+// hides the unfocused monitor only
+auto hideUnfocusedMonitor(screen_info_t monitors) -> void {
+    fs::path waybar_config = getCurrentML4WConfig();
 
     if (waybar_config.empty()) {
         std::cout << "[+] Waybar config file couldn't be found. Aborting.  \n";
         return;
     }
 
+    std::ifstream file(waybar_config);
+    Json::Value config;
+    file >> config;
+
+    std::cout << "[+] Current config : \n" << config;
 
 }
 
 auto main() -> int {
 
-    const auto monitors = getMonitors();
-
-    std::cout << "Available monitors: ";
-    for (auto& mon : monitors)
-        std::cout << mon << ", ";
-    std::cout << std::endl;
+    const screen_info_t monitors = getMonitorsInfo();
 
     // run 
     //hideAllMonitors();
-    hideUnfocusedMonitor();
+    hideUnfocusedMonitor(monitors);
 
+    return 0;
 }
