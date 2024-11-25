@@ -1,13 +1,15 @@
-#include <cstdlib>
+#include <csignal>
 #include <fstream>
 #include <iostream>
 #include <json/json.h>
 #include <filesystem>
 #include <json/value.h>
-#include <string>
 #include <thread>
+#include <signal.h>
 #include <vector>
 #include <array>
+
+auto execCommand(const std::string& command) -> std::string;
 
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
@@ -15,16 +17,22 @@ namespace fs = std::filesystem;
 constexpr int THRESHOLD = 43;
 const fs::path HOMEDIR = std::string(std::getenv("HOME"));
 const fs::path WAYBAR_BASE_CONFIG = HOMEDIR / ".config/waybar/themes";
+const pid_t WAYBAR_PID = std::stoi(execCommand("pidof waybar")); //TODO Maybe move execComand to a helper header
 
 const std::array<fs::path, 2> possible_config_lookup = {
     HOMEDIR / ".config/ml4w/settings/waybar-theme.sh",
     HOMEDIR / ".cache/.themestyle.sh"
 };
 
-// pack basic info
+// TODO REWORK SCREEN DATA STRUCTURE
+
+struct monitor_info {
+    std::string name;
+    int x_pos, y_pos;
+};
+
 struct screen_info_t {
-    std::vector<std::string> names;
-    int x_delimiter;
+    std::vector<monitor_info> names;
 };
 
 // creates a pipe, executes de command and returns output as a string
@@ -49,6 +57,7 @@ auto execCommand(const std::string& command) -> std::string {
 }
 
 // returns a vector with the available monitor names
+/*
 auto getMonitorsInfo() -> screen_info_t {
     const std::string cmd = "hyprctl monitors -j";
     std::istringstream stream(execCommand(cmd));
@@ -77,6 +86,7 @@ auto getMonitorsInfo() -> screen_info_t {
 
     return monitors;
 }
+*/
 
 // returns cursor x and y coords
 auto getCursorPos() -> std::pair<int, int> {
@@ -94,13 +104,13 @@ auto getCursorPos() -> std::pair<int, int> {
 // hides waybar in both monitors at the same time
 auto hideAllMonitors() -> void {
     bool open = false;
-    const std::string toggle_hide = "killall -SIGUSR1 waybar";
 
     // If its initialy visible, hide it first
     std::cout << "Is waybar visible? [Y/N]: ";
     char c = std::cin.get();
     if (c == 'Y' || c == 'y') {
-        system(toggle_hide.c_str());
+        //system(toggle_hide.c_str());
+        kill(WAYBAR_PID, SIGUSR1);
     }
 
     // hide bar in both monitors
@@ -112,7 +122,8 @@ auto hideAllMonitors() -> void {
         // show waybar
         if (!open && root_y < 5) {
             std::cout << "[+] opening it\n";
-            system(toggle_hide.c_str());
+            //system(toggle_hide.c_str());
+            kill(WAYBAR_PID, SIGUSR1);
             open = true;
 
             auto temp = getCursorPos();
@@ -127,7 +138,8 @@ auto hideAllMonitors() -> void {
         // closing waybar
         else if (open && root_y > THRESHOLD) {
             std::cout << "[+] It should die \n";
-            system(toggle_hide.c_str());
+            //system(toggle_hide.c_str());
+            kill(WAYBAR_PID, SIGUSR1);
             open = false;
         }
 
@@ -182,17 +194,15 @@ auto hideUnfocusedMonitor(screen_info_t monitors) -> void {
     Json::Value config;
     file >> config;
 
-    std::cout << "[+] Current config : \n" << config;
-
 }
 
 auto main() -> int {
 
-    const screen_info_t monitors = getMonitorsInfo();
+    //const screen_info_t monitors = getMonitorsInfo();
 
     // run 
-    //hideAllMonitors();
-    hideUnfocusedMonitor(monitors);
+    hideAllMonitors();
+    //hideUnfocusedMonitor(monitors);
 
     return 0;
 }
