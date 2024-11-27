@@ -2,6 +2,7 @@
 #include "utils.hpp"
 #include <csignal>
 #include <cstdlib>
+#include <exception>
 #include <fstream>
 #include <algorithm>
 #include <iostream>
@@ -112,7 +113,16 @@ auto Waybar::hideAllMonitors() -> void {
 }
 
 auto Waybar::reload() -> void {
+    Utils::log(Utils::INFO, "Reloading PID: {}\n", waybar_pid);
+    
+    //Utils::execCommand("killall waybar -SIGUSR2");
     kill(waybar_pid, SIGUSR2);
+    try {
+        waybar_pid = std::stoi(Utils::execCommand("pidof waybar"));
+    } catch (std::exception& e) {
+        Utils::log(Utils::ERR, "{}", e.what());
+    }
+    
 }
 
 auto Waybar::hideUnfocused() -> void {
@@ -143,45 +153,61 @@ auto Waybar::hideUnfocused() -> void {
     if (config["output"].size() > 1) {
         
         // create an overwriteable ofstream
-        std::ofstream o_file(full_config, std::ofstream::trunc);
+        std::ofstream o_file(full_config);
 
-        // sort monitors DESCENDING based on x starting position
+        // sort monitors ASCENDING based on x starting position
         std::sort(outputs.begin(), outputs.end() );
-        std::reverse(outputs.begin(), outputs.end());
 
         auto [x, y] = Utils::Hyprland::getCursorPos();
-        bool need_reload = false;
 
         while (!interruptRequest) {
-            Json::Value temp;
+            Json::Value temp = Json::arrayValue;
+            bool need_reload = false; // this is false, until otherwise
+            std::string hidden_name;
 
             for (auto& mon : outputs) {
-                
-                // needs to be hidden
-                if (mon.x_coord < x && !mon.hidden){
+                if (mon.x_coord + mon.width < x && mon.hidden){
+                    // si estas a mi izquierda oculto -> mostrar
+                    Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
+                    mon.hidden = false;
+                    need_reload = true;
+                }
+                else if (mon.x_coord < x && mon.x_coord + mon.width > x && !mon.hidden) {
+                    // si estas en mi monitor y no estas oculto -> hide
                     Utils::log(Utils::INFO, "Mon: {} needs to be hidden.\n", mon.name);
                     mon.hidden = true;
+                    hidden_name = mon.name;
                     need_reload = true;
-                    continue;
+                    break;
                 }
-                // we should show this one
-                else {
-                    Utils::log(Utils::INFO, "Mon: {} its okay.\n", mon.name);
-                    temp.append(mon.name);
+                else if (mon.x_coord > x && mon.hidden) {
+                    // si esta a la derecha y oculto -> mostrar
+                    Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
                     mon.hidden = false;
+                    need_reload = true;
+                }
+                
+            }
+
+            // add the rest to show them
+            for (const auto& mon: outputs) {
+                if (!mon.hidden && mon.name != hidden_name) {
+                    temp.append(mon.name);
                 }
             }
 
             // only update in something changed
-            if (need_reload) {
+            if (need_reload && !temp.isNull()) {
                 std::cout << "UPDATING.\n";
                 config["output"] = temp;
                 std::cout << "New update: " << config["output"] << "\n";
                 Utils::truncateFile(o_file, full_config); // We delete all the file
                 o_file << config;
+                o_file.close();
                 reload();
-                need_reload = false;
             }
+
+            // wait and update mouse
             std::this_thread::sleep_for(500ms);
             std::tie(x,y) = Utils::Hyprland::getCursorPos();
             Utils::log(Utils::INFO, "Mouse ({},{})\n", x,y);

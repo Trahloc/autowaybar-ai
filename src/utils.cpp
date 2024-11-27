@@ -1,10 +1,11 @@
 #include "utils.hpp"
+#include <istream>
 #include <stdexcept>
 #include <unistd.h>
 
 auto Utils::truncateFile(std::ofstream& file, const fs::path& filepath) -> void {
     file.close();
-    file.open(filepath);
+    file.open(filepath, std::iostream::trunc);
     if (!file.is_open())
         throw std::runtime_error("[ERR] Couldn't open the file.\n");
 }
@@ -60,14 +61,18 @@ auto Utils::Hyprland::getMonitorsInfo() -> std::vector<monitor_info> {
         // names
         if (!data[i]["name"].empty()) {
             temp.name = data[i]["name"].asString();
-            Utils::log(LOG, "Monitor named {} found. \n", temp.name);
         }
         
         // x coord
-        if (int x_coord = data[i]["x"].asInt(); x_coord) {
-            temp.x_coord = x_coord;
+        if (!data[i]["x"].empty()) {
+            temp.x_coord = data[i]["x"].asInt();
         }
 
+        if (!data[i]["width"].empty()) {
+            temp.width = data[i]["width"].asInt();
+        }
+
+        Utils::log(LOG, "Monitor named {} found in x: {}, width: {}. \n", temp.name, temp.x_coord, temp.width);
         monitors.push_back(temp);
     }
 

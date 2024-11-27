@@ -14,7 +14,7 @@ namespace fs = std::filesystem;
 
 struct monitor_info {
     std::string name;
-    int x_coord;
+    int x_coord, width;
     bool hidden = false;
 
     bool operator<(monitor_info& other) {
