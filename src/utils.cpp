@@ -1,10 +1,19 @@
 #include "utils.hpp"
+#include <stdexcept>
+#include <unistd.h>
+
+auto Utils::truncateFile(std::ofstream& file, const fs::path& filepath) -> void {
+    file.close();
+    file.open(filepath);
+    if (!file.is_open())
+        throw std::runtime_error("[ERR] Couldn't open the file.\n");
+}
 
 auto Utils::execCommand(const std::string& command) -> std::string {
     FILE* pipe = popen(command.c_str(), "r");
 
     if (!pipe) {
-        std::cerr << "[ERROR] Failed to execute command: " << command << ".\n";
+        std::cerr << "[ERR] Failed to execute command: " << command << ".\n";
         return {};
     }
 
@@ -41,7 +50,8 @@ auto Utils::Hyprland::getMonitorsInfo() -> std::vector<monitor_info> {
     Json::Value data;
     stream >> data;
     
-    std::vector<monitor_info> monitors(2);
+    std::vector<monitor_info> monitors;
+    monitors.reserve(2);
 
     // fetch all monitors info
     for (int i = 0; i < data.size(); ++i) {

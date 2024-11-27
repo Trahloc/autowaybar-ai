@@ -1,4 +1,3 @@
-#include <atomic>
 #include <csignal>
 #include "utils.hpp"
 #include <json/json.h>
@@ -11,10 +10,9 @@
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
-// GLOBALS
+// GLOBALS and CONSTANS
+static bool interruptRequest = false;
 const fs::path HOMEDIR = std::string(std::getenv("HOME"));
-const pid_t WAYBAR_PID = std::stoi(Utils::execCommand("pidof waybar")); //TODO Maybe move execComand to a helper header
-
 const std::array<fs::path, 2> possible_config_lookup = {
     HOMEDIR / ".config/ml4w/settings/waybar-theme.sh",
     HOMEDIR / ".cache/.themestyle.sh"
@@ -43,8 +41,9 @@ class Waybar {
                 interruptRequest = true;
             }
         }
+
+        pid_t waybar_pid;
         const int bar_threshold = 43;
         fs::path full_config;
         std::vector<monitor_info> outputs;
-         bool interruptRequest = false;
 };

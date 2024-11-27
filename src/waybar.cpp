@@ -1,24 +1,35 @@
 #include "waybar.hpp"
 #include "utils.hpp"
 #include <csignal>
+#include <cstdlib>
 #include <fstream>
 #include <algorithm>
 #include <iostream>
 #include <json/value.h>
+#include <stdexcept>
 #include <thread>
 
 Waybar::Waybar() {
+
+    try {
+        waybar_pid = std::stoi(Utils::execCommand("pidof waybar"));
+    } catch(std::exception& e) {
+        Utils::log(Utils::CRIT, "Waybar is not running.\n");
+        std::exit(0);
+    }
+
     outputs = Utils::Hyprland::getMonitorsInfo();
     full_config = getCurrentML4WConfig();
     Utils::log(Utils::INFO, "Waybar config found in: {}\n", full_config.string());
 }
 
 auto Waybar::run(BarMode mode) -> void {
+    
     if (mode == BarMode::HIDE_ALL) {
         hideAllMonitors();
     } 
     else if (mode == BarMode::HIDE_UNFOCUSED) {
-        ;
+        hideUnfocused();
     }
 
 }
@@ -65,7 +76,7 @@ auto Waybar::hideAllMonitors() -> void {
     char c = std::cin.get();
     if (c == 'Y' || c == 'y') {
         //system(toggle_hide.c_str());
-        kill(WAYBAR_PID, SIGUSR1);
+        kill(waybar_pid, SIGUSR1);
     }
 
     // hide bar in both monitors
@@ -77,7 +88,7 @@ auto Waybar::hideAllMonitors() -> void {
         // show waybar
         if (!open && root_y < 5) {
             Utils::log(Utils::INFO, "Opening it. \n");
-            kill(WAYBAR_PID, SIGUSR1);
+            kill(waybar_pid, SIGUSR1);
             open = true;
 
             auto temp = Utils::Hyprland::getCursorPos();
@@ -92,7 +103,7 @@ auto Waybar::hideAllMonitors() -> void {
         // closing waybar
         else if (open && root_y > bar_threshold) {
             Utils::log(Utils::INFO, "Hiding it. \n");
-            kill(WAYBAR_PID, SIGUSR1);
+            kill(waybar_pid, SIGUSR1);
             open = false;
         }
 
@@ -101,14 +112,29 @@ auto Waybar::hideAllMonitors() -> void {
 }
 
 auto Waybar::reload() -> void {
-    kill(WAYBAR_PID, SIGUSR2);
+    kill(waybar_pid, SIGUSR2);
 }
 
 auto Waybar::hideUnfocused() -> void {
-    std::fstream file(full_config);
-
+    // read initial config
+    std::ifstream file(full_config);
+    if (!file.is_open()) {
+        throw std::runtime_error("[CRIT] Couldn't open config file.\n");
+    }
     Json::Value config;
     file >> config;
+    file.close();
+
+    // filling output with all monitors 
+    if (config["output"].isNull()) {
+        Utils::log(Utils::INFO, "No initial output config in waybar, adding all monitors. \n");
+        Json::Value val;
+        for (const auto& mon : outputs)
+            val.append(mon.name);
+        config["output"] = val;
+    }
+
+    // store a base output
     const Json::Value initial_outputs = config["output"];
 
     std::signal(SIGINT, handleSignal);
@@ -117,35 +143,58 @@ auto Waybar::hideUnfocused() -> void {
     if (initial_outputs.isArray() && 
         initial_outputs.size() == outputs.size() &&
         outputs.size() > 1) {
+        
+        // create an overwriteable ofstream
+        std::ofstream o_file(full_config, std::ofstream::trunc);
 
         // sort monitors DESCENDING based on x starting position
         std::sort(outputs.begin(), outputs.end() );
         std::reverse(outputs.begin(), outputs.end());
 
         auto [x, y] = Utils::Hyprland::getCursorPos();
+        bool need_reload = false;
 
         while (!interruptRequest) {
             Json::Value temp;
 
-            bool found_to_delete = false;
             for (auto& mon : outputs) {
-                // this one is out
-                if (mon.x_coord < x && !found_to_delete) {
-                    found_to_delete = true;
+                
+                // needs to be hidden
+                if (mon.x_coord < x && !mon.hidden){
+                    Utils::log(Utils::INFO, "Mon: {} needs to be hidden.\n", mon.name);
+                    mon.hidden = true;
+                    need_reload = true;
                     continue;
                 }
                 // we should show this one
                 else {
+                    Utils::log(Utils::INFO, "Mon: {} its okay.\n", mon.name);
                     temp.append(mon.name);
+                    mon.hidden = false;
                 }
             }
 
-            config["output"] = temp;
-            reload();
-            std::this_thread::sleep_for(80ms);
+            // only update in something changed
+            if (need_reload) {
+                std::cout << "UPDATING.\n";
+                config["output"] = temp;
+                std::cout << "New update: " << config["output"] << "\n";
+                Utils::truncateFile(o_file, full_config); // We delete all the file
+                o_file << config;
+                reload();
+                need_reload = false;
+            }
+            std::this_thread::sleep_for(500ms);
             std::tie(x,y) = Utils::Hyprland::getCursorPos();
+            Utils::log(Utils::INFO, "Mouse ({},{})\n", x,y);
         }
-        
+
+        // restore original config
+        config["output"] = initial_outputs;
+        Utils::truncateFile(o_file, full_config);
+        o_file << config;
+        o_file.close();
+        reload();   
     }
     // unhandled case
     else {
@@ -154,11 +203,5 @@ auto Waybar::hideUnfocused() -> void {
         return;
     }
 
-
-    // restore original config
-    config["output"] = initial_outputs;
-    file << config;
-    file.close();
-    reload();
 }
 
