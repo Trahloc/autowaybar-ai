@@ -1,3 +1,4 @@
+#include <atomic>
 #include <csignal>
 #include "utils.hpp"
 #include <json/json.h>
@@ -30,13 +31,20 @@ class Waybar {
 
         auto run(BarMode mode) -> void; // calls the apropiate operation mode 
         auto reload() -> void; // sigusr2 
-        auto updateConfig() -> void; // updates the config in any way
 
     private:
         auto hideAllMonitors() -> void; 
+        auto hideUnfocused() -> void;
         auto getCurrentML4WConfig() -> fs::path;
 
+        static void handleSignal(int signal) {
+            if (signal == SIGINT) {
+                Utils::log(Utils::WARN, "Interruption detected, saving resources...\n");
+                interruptRequest = true;
+            }
+        }
         const int bar_threshold = 43;
         fs::path full_config;
         std::vector<monitor_info> outputs;
+         bool interruptRequest = false;
 };

@@ -1,7 +1,10 @@
 #include "waybar.hpp"
 #include "utils.hpp"
-#include <climits>
+#include <csignal>
+#include <fstream>
+#include <algorithm>
 #include <iostream>
+#include <json/value.h>
 #include <thread>
 
 Waybar::Waybar() {
@@ -96,3 +99,66 @@ auto Waybar::hideAllMonitors() -> void {
         std::this_thread::sleep_for(80ms);
     }
 }
+
+auto Waybar::reload() -> void {
+    kill(WAYBAR_PID, SIGUSR2);
+}
+
+auto Waybar::hideUnfocused() -> void {
+    std::fstream file(full_config);
+
+    Json::Value config;
+    file >> config;
+    const Json::Value initial_outputs = config["output"];
+
+    std::signal(SIGINT, handleSignal);
+
+    // easiest start: All phisical monitors are used in waybar
+    if (initial_outputs.isArray() && 
+        initial_outputs.size() == outputs.size() &&
+        outputs.size() > 1) {
+
+        // sort monitors DESCENDING based on x starting position
+        std::sort(outputs.begin(), outputs.end() );
+        std::reverse(outputs.begin(), outputs.end());
+
+        auto [x, y] = Utils::Hyprland::getCursorPos();
+
+        while (!interruptRequest) {
+            Json::Value temp;
+
+            bool found_to_delete = false;
+            for (auto& mon : outputs) {
+                // this one is out
+                if (mon.x_coord < x && !found_to_delete) {
+                    found_to_delete = true;
+                    continue;
+                }
+                // we should show this one
+                else {
+                    temp.append(mon.name);
+                }
+            }
+
+            config["output"] = temp;
+            reload();
+            std::this_thread::sleep_for(80ms);
+            std::tie(x,y) = Utils::Hyprland::getCursorPos();
+        }
+        
+    }
+    // unhandled case
+    else {
+        Utils::log(Utils::WARN, "Please make sure all connected monitors are showing waybar and there are at least 2 monitors.\n");
+        file.close();
+        return;
+    }
+
+
+    // restore original config
+    config["output"] = initial_outputs;
+    file << config;
+    file.close();
+    reload();
+}
+

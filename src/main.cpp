@@ -1,25 +1,15 @@
+#include "utils.hpp"
 #include "waybar.hpp"
 
-// hides the unfocused monitor only
-/*
-auto hideUnfocusedMonitor(screen_info_t monitors) -> void {
-    fs::path waybar_config = getCurrentML4WConfig();
+auto main() -> int 
+{
 
-    if (waybar_config.empty()) {
-        std::cout << "[+] Waybar config file couldn't be found. Aborting.  \n";
-        return;
+    if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
+        Waybar bar;
+        bar.run(BarMode::HIDE_ALL);
     }
-
-    std::ifstream file(waybar_config);
-    Json::Value config;
-    file >> config;
-
-}
-*/
-
-auto main() -> int {
-
-    Waybar bar;
-    bar.run(BarMode::HIDE_ALL);
+    else {
+        Utils::log(Utils::CRIT,"This tool only supports Hyprland WM. Exiting.\n");
+    }
 
 }

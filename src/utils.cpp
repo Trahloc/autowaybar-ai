@@ -52,10 +52,7 @@ auto Utils::Hyprland::getMonitorsInfo() -> std::vector<monitor_info> {
             temp.name = data[i]["name"].asString();
             Utils::log(LOG, "Monitor named {} found. \n", temp.name);
         }
-        // width
-        if (int width = data[i]["width"].asInt(); width) {
-            temp.width = width;
-        }
+        
         // x coord
         if (int x_coord = data[i]["x"].asInt(); x_coord) {
             temp.x_coord = x_coord;

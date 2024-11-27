@@ -10,7 +10,15 @@
 
 struct monitor_info {
     std::string name;
-    int x_coord, width;
+    int x_coord;
+
+    bool operator<(monitor_info& other) {
+        return this->x_coord < other.x_coord;
+    }
+
+    bool operator==(monitor_info& other) {
+        return name == other.name && x_coord == other.x_coord;
+    }
 };
 
 namespace Utils {
