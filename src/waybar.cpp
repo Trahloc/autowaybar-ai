@@ -125,24 +125,22 @@ auto Waybar::hideUnfocused() -> void {
     file >> config;
     file.close();
 
-    // filling output with all monitors 
-    if (config["output"].isNull()) {
-        Utils::log(Utils::INFO, "No initial output config in waybar, adding all monitors. \n");
+    // filling output with all monitors in case some are missing
+    if (!config["output"].isNull() && config["output"].size() < outputs.size()) {
+        Utils::log(Utils::INFO, "Some monitors are not in the Waybar config, adding all of them. \n");
         Json::Value val;
         for (const auto& mon : outputs)
             val.append(mon.name);
         config["output"] = val;
     }
 
-    // store a base output
+    // store output with all monitors in case of exiting
     const Json::Value initial_outputs = config["output"];
 
     std::signal(SIGINT, handleSignal);
 
-    // easiest start: All phisical monitors are used in waybar
-    if (initial_outputs.isArray() && 
-        initial_outputs.size() == outputs.size() &&
-        outputs.size() > 1) {
+    // easiest start: only if we have more than 1 monitor
+    if (config["output"].size() > 1) {
         
         // create an overwriteable ofstream
         std::ofstream o_file(full_config, std::ofstream::trunc);
@@ -198,8 +196,7 @@ auto Waybar::hideUnfocused() -> void {
     }
     // unhandled case
     else {
-        Utils::log(Utils::WARN, "Please make sure all connected monitors are showing waybar and there are at least 2 monitors.\n");
-        file.close();
+        Utils::log(Utils::WARN, "This feature requieres a minimum of 2 monitors.\n");
         return;
     }
 
