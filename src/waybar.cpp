@@ -208,7 +208,7 @@ auto Waybar::hideUnfocused() -> void {
             }
 
             // wait and update mouse
-            std::this_thread::sleep_for(500ms);
+            std::this_thread::sleep_for(80ms);
             std::tie(x,y) = Utils::Hyprland::getCursorPos();
             Utils::log(Utils::INFO, "Mouse ({},{})\n", x,y);
         }
