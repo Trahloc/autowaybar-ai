@@ -1,5 +1,4 @@
 #include "utils.hpp"
-#include <iostream>
 
 auto Utils::execCommand(const std::string& command) -> std::string {
     FILE* pipe = popen(command.c_str(), "r");
@@ -21,23 +20,7 @@ auto Utils::execCommand(const std::string& command) -> std::string {
     return result;
 }
 
-template <typename... Args>
-void Utils::log(Utils::LogLevel level, const std::string &fmt, Args&&... args) {
-    switch (level) {
-        case NONE: break;
-        case LOG: std::cout << "[LOG] "; break;
-        case WARN: std::cout << "[WARN] "; break;
-        case ERR: std::cout << "[ERR] "; break;
-        case CRIT: std::cout << "[CRIT] "; break;
-        case INFO: std::cout << "[INFO] "; break;
-        case TRACE: std::cout << "[TRACE] "; break;
-    }
-    //std::string message = fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...);
-    fmt::print(fmt::runtime(fmt), std::forward<Args>(args)...);
-    //std::cout << message << std::endl;
-}
-
- // returns cursor x and y coords
+// returns cursor x and y coords
 auto Utils::Hyprland::getCursorPos() -> std::pair<int, int> {
     const std::string cmd = "hyprctl cursorpos";
     std::istringstream stream(Utils::execCommand(cmd));
@@ -67,7 +50,7 @@ auto Utils::Hyprland::getMonitorsInfo() -> std::vector<monitor_info> {
         // names
         if (!data[i]["name"].empty()) {
             temp.name = data[i]["name"].asString();
-            Utils::log(LOG, "Monitor named {} found", temp.name);
+            Utils::log(LOG, "Monitor named {} found. \n", temp.name);
         }
         // width
         if (int width = data[i]["width"].asInt(); width) {

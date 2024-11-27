@@ -1,11 +1,13 @@
 #include "waybar.hpp"
+#include "utils.hpp"
+#include <climits>
 #include <iostream>
 #include <thread>
 
 Waybar::Waybar() {
     outputs = Utils::Hyprland::getMonitorsInfo();
     full_config = getCurrentML4WConfig();
-    Utils::log(Utils::INFO, "Waybar config found in: {}", full_config.string());
+    Utils::log(Utils::INFO, "Waybar config found in: {}\n", full_config.string());
 }
 
 auto Waybar::run(BarMode mode) -> void {
@@ -33,17 +35,16 @@ auto Waybar::getCurrentML4WConfig() -> fs::path {
     }
 
     if (!current_config.empty()) {
-        
         // parse current config
         int delimiter = current_config.find(";");
         auto config_name = current_config.substr(1, delimiter - 1);
-        std::cout << "[+] current theme: " << config_name << std::endl;
+        Utils::log(Utils::INFO, "Current theme: {} \n", config_name);
 
         // get the stuff
         fs::path config_file { ml4w_config_root / config_name / "config" };
         if (fs::is_regular_file(config_file)) {
 
-            std::cout << "[+] Full config file found in: " << config_file.string() << std::endl;
+            Utils::log(Utils::INFO, "Full config file found in: {} \n", config_file.string());
             return config_file;
         }
 
@@ -68,12 +69,11 @@ auto Waybar::hideAllMonitors() -> void {
     while (true) {
         auto [root_x, root_y] = Utils::Hyprland::getCursorPos();
 
-        std::cout << "[+] Found mouse at position at: " << root_x << ", " << root_y << "\n";
+        Utils::log(Utils::LOG, "Found mouse at position ({},{})\n", root_x, root_y);
 
         // show waybar
         if (!open && root_y < 5) {
-            std::cout << "[+] opening it\n";
-            //system(toggle_hide.c_str());
+            Utils::log(Utils::INFO, "Opening it. \n");
             kill(WAYBAR_PID, SIGUSR1);
             open = true;
 
@@ -88,8 +88,7 @@ auto Waybar::hideAllMonitors() -> void {
         }
         // closing waybar
         else if (open && root_y > bar_threshold) {
-            std::cout << "[+] It should die \n";
-            //system(toggle_hide.c_str());
+            Utils::log(Utils::INFO, "Hiding it. \n");
             kill(WAYBAR_PID, SIGUSR1);
             open = false;
         }

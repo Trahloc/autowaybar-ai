@@ -1,5 +1,6 @@
 #pragma once 
 
+#include <iostream>
 #include <fmt/base.h>
 #include <fmt/format.h>
 #include <json/json.h>
@@ -27,7 +28,20 @@ namespace Utils {
     };
 
     template <typename... Args>
-    void log(LogLevel level, const std::string &fmt, Args&&... args); 
+    void log(Utils::LogLevel level, const std::string &fmt, Args&&... args) {
+        switch (level) {
+            case NONE: break;
+            case LOG: std::cout << "[LOG] "; break;
+            case WARN: std::cout << "[WARN] "; break;
+            case ERR: std::cout << "[ERR] "; break;
+            case CRIT: std::cout << "[CRIT] "; break;
+            case INFO: std::cout << "[INFO] "; break;
+            case TRACE: std::cout << "[TRACE] "; break;
+        }
+        //std::string message = fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...);
+        fmt::print(fmt::runtime(fmt), std::forward<Args>(args)...);
+        //std::cout << message << std::endl;
+    }
 
     // Exclusive for Hyprland, wont work with other WM
     namespace Hyprland {
