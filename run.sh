@@ -9,5 +9,5 @@ src=(
 )
 
 cd src/
-g++ "${src[@]}" -o $output -std=c++23 -O3 -lfmt -ljsoncpp && ./$output
+g++ "${src[@]}" -o $output -std=c++23 -O3 -lfmt -ljsoncpp && mv $output ../build/ && "../build/$output"
 

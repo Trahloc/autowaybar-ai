@@ -36,7 +36,7 @@ class Waybar {
         auto getCurrentML4WConfig() -> fs::path;
 
         static void handleSignal(int signal) {
-            if (signal == SIGINT) {
+            if (signal == SIGINT || signal == SIGTERM) {
                 Utils::log(Utils::WARN, "Interruption detected, saving resources...\n");
                 interruptRequest = true;
             }

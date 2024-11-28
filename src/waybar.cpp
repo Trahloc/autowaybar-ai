@@ -115,13 +115,14 @@ auto Waybar::hideAllMonitors() -> void {
 auto Waybar::reload() -> void {
     Utils::log(Utils::INFO, "Reloading PID: {}\n", waybar_pid);
     
-    //Utils::execCommand("killall waybar -SIGUSR2");
     kill(waybar_pid, SIGUSR2);
+    /*
     try {
         waybar_pid = std::stoi(Utils::execCommand("pidof waybar"));
     } catch (std::exception& e) {
         Utils::log(Utils::ERR, "{}", e.what());
     }
+    */
     
 }
 
@@ -148,6 +149,7 @@ auto Waybar::hideUnfocused() -> void {
     const Json::Value initial_outputs = config["output"];
 
     std::signal(SIGINT, handleSignal);
+    std::signal(SIGTERM, handleSignal);
 
     // easiest start: only if we have more than 1 monitor
     if (config["output"].size() > 1) {
