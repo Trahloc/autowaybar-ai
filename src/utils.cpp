@@ -38,9 +38,9 @@ auto Utils::Hyprland::getCursorPos() -> std::pair<int, int> {
     int xpos, ypos;
     char basurilla;
     if (stream >> xpos >> basurilla >> ypos)
-        return {xpos, ypos};
+        return std::pair<int, int>{xpos, ypos};
 
-    return {-1, -1};
+    return std::pair<int, int>{-1, -1};
 }
 
 
