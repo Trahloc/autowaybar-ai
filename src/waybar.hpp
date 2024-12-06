@@ -19,7 +19,7 @@ const std::array<fs::path, 2> possible_config_lookup = {
 };
 
 enum class BarMode {
-    HIDE_ALL, 
+    HIDE_ALL,
     HIDE_UNFOCUSED
 };
 
@@ -27,11 +27,11 @@ class Waybar {
     public:
         Waybar();
 
-        auto run(BarMode mode) -> void; // calls the apropiate operation mode 
-        auto reload() -> void; // sigusr2 
+        auto run(BarMode mode) -> void; // calls the apropiate operation mode
+        auto reload() -> void; // sigusr2
 
     private:
-        auto hideAllMonitors() -> void; 
+        auto hideAllMonitors() -> void;
         auto hideUnfocused() -> void;
         auto getCurrentML4WConfig() -> fs::path;
 
@@ -42,8 +42,8 @@ class Waybar {
             }
         }
 
-        pid_t waybar_pid;
-        const int bar_threshold = 43;
-        fs::path full_config;
-        std::vector<monitor_info> outputs;
+        pid_t m_waybar_pid;
+        const int m_bar_threshold = 43;
+        fs::path m_full_config;
+        std::vector<monitor_info> m_outputs;
 };
