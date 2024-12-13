@@ -10,7 +10,7 @@ auto printHelp() -> void {
         "   Prints this help\n";
 }
 
-int main(int argc, char *argv[]) {
+auto main(int argc, char *argv[]) -> int {
     const char *short_opts = "m:h";
 
     const struct option long_opts[] = {
