@@ -19,18 +19,21 @@ Waybar::Waybar() {
         std::exit(0);
     }
 
-    m_outputs = Utils::Hyprland::getMonitorsInfo();
-    m_full_config = getCurrentML4WConfig();
-    Utils::log(Utils::INFO, "Waybar config found in: {}\n", m_full_config.string());
 }
 
 auto Waybar::run(BarMode mode) -> void {
 
     if (mode == BarMode::HIDE_UNFOCUSED && std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
+        m_outputs = Utils::Hyprland::getMonitorsInfo();
+        m_full_config = getCurrentML4WConfig();
+        Utils::log(Utils::INFO, "Waybar config found in: {}\n", m_full_config.string());
+
         hideUnfocused();
-    } else if (mode == BarMode::HIDE_ALL) {
+    } 
+    else if (mode == BarMode::HIDE_ALL) {
         hideAllMonitors();
-    } else {
+    } 
+    else {
         Utils::log(Utils::LogLevel::CRIT, "This mode ONLY supports Hyprland currently.");
     }
 
@@ -73,10 +76,6 @@ auto Waybar::getCurrentML4WConfig() -> fs::path {
 auto Waybar::hideAllMonitors() -> void {
     bool open = false;
 
-    std::cout << "restarting  \n";
-    kill(m_waybar_pid, SIGUSR2);
-    std::cout << "hiding  \n";
-    std::this_thread::sleep_for(100ms);
     kill(m_waybar_pid, SIGUSR1);
 
     std::signal(SIGINT, handleSignal);
