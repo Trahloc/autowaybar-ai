@@ -1,5 +1,5 @@
 ### Description
-Small program that allows various modes for waybar in Hyrprland. 
+Small program that allows various modes for waybar in Hyprland. 
 ### Requirements
 ```
 Hyprland
