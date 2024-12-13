@@ -26,11 +26,12 @@ Waybar::Waybar() {
 
 auto Waybar::run(BarMode mode) -> void {
 
-    if (mode == BarMode::HIDE_ALL) {
-        hideAllMonitors();
-    }
-    else if (mode == BarMode::HIDE_UNFOCUSED) {
+    if (mode == BarMode::HIDE_UNFOCUSED && std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
         hideUnfocused();
+    } else if (mode == BarMode::HIDE_ALL) {
+        hideAllMonitors();
+    } else {
+        Utils::log(Utils::LogLevel::CRIT, "This mode ONLY supports Hyprland currently.");
     }
 
 }
@@ -72,16 +73,17 @@ auto Waybar::getCurrentML4WConfig() -> fs::path {
 auto Waybar::hideAllMonitors() -> void {
     bool open = false;
 
-    // If its initialy visible, hide it first
-    std::cout << "Is waybar visible? [Y/N]: ";
-    char c = std::cin.get();
-    if (c == 'Y' || c == 'y') {
-        //system(toggle_hide.c_str());
-        kill(m_waybar_pid, SIGUSR1);
-    }
+    std::cout << "restarting  \n";
+    kill(m_waybar_pid, SIGUSR2);
+    std::cout << "hiding  \n";
+    std::this_thread::sleep_for(100ms);
+    kill(m_waybar_pid, SIGUSR1);
+
+    std::signal(SIGINT, handleSignal);
+    std::signal(SIGTERM, handleSignal);
 
     // hide bar in both monitors
-    while (true) {
+    while (!interruptRequest) {
         auto [root_x, root_y] = Utils::Hyprland::getCursorPos();
 
         Utils::log(Utils::LOG, "Found mouse at position ({},{})\n", root_x, root_y);
@@ -110,20 +112,14 @@ auto Waybar::hideAllMonitors() -> void {
 
         std::this_thread::sleep_for(80ms);
     }
+
+    // Restoring initial config in case of interruption
+    reload();
 }
 
 auto Waybar::reload() -> void {
     Utils::log(Utils::INFO, "Reloading PID: {}\n", m_waybar_pid);
-
     kill(m_waybar_pid, SIGUSR2);
-    /*
-    try {
-        waybar_pid = std::stoi(Utils::execCommand("pidof waybar"));
-    } catch (std::exception& e) {
-        Utils::log(Utils::ERR, "{}", e.what());
-    }
-    */
-
 }
 
 auto Waybar::hideUnfocused() -> void {
