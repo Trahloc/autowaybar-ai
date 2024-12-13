@@ -8,6 +8,8 @@ src=(
     "utils.cpp"
 )
 
+mkdir -p build
+
 cd src/ || exit
 g++ "${src[@]}" -o $output -std=c++23 -O3 -lfmt -ljsoncpp && mv $output ../build/ 
 
