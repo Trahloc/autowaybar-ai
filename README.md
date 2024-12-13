@@ -18,3 +18,6 @@ jsoncpp
 
 ### Build
 Just run `./build.sh` and go to ./build directory and launch `./autowaybar`.
+
+### Bugs
+This might be a skill issue but I dont know how to prevent waybar from spawning child processes whenever a SIGUSR1/2 signal is made. Any help would be apreciated.
