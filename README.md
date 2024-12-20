@@ -17,4 +17,12 @@ jsoncpp
 - `autowaybar -m unfocused`: Will hide waybar in the focused monitor only. (*check Warning*)
 
 ### Build
-Just run `./build.sh` and go to ./build directory and launch `./autowaybar`.
+In order to build it
+```bash
+# You can do: 
+make build
+./build/autowaybar -m [mode]
+
+# or 
+make run -m [mode]
+```
