@@ -22,7 +22,6 @@ Waybar::Waybar() {
 }
 
 auto Waybar::run(BarMode mode) -> void {
-
     if (mode == BarMode::HIDE_UNFOCUSED && std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
         m_outputs = Utils::Hyprland::getMonitorsInfo();
         m_full_config = getCurrentML4WConfig();
@@ -41,7 +40,6 @@ auto Waybar::run(BarMode mode) -> void {
 
 // WARNING: For now, it will ONLY suport ML4W dotfiles
 auto Waybar::getCurrentML4WConfig() -> fs::path {
-
     const fs::path ml4w_config_root = HOMEDIR / ".config/waybar/themes";
     std::string current_config;
 
@@ -147,8 +145,7 @@ auto Waybar::hideUnfocused() -> void {
     std::signal(SIGTERM, handleSignal);
 
     // easiest start: only if we have more than 1 monitor
-    if (config["output"].size() > 1) {
-
+    if (m_outputs.size() >= 2) {
         // create an overwriteable ofstream
         std::ofstream o_file(m_full_config);
 

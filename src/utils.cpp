@@ -45,7 +45,7 @@ auto Utils::Hyprland::getCursorPos() -> std::pair<int, int> {
 
 
 auto Utils::Hyprland::getMonitorsInfo() -> std::vector<monitor_info> {
-    const std::string cmd = "hyprctl monitors -j";
+    const std::string cmd = "hyprctl monitors all -j";
     std::istringstream stream(Utils::execCommand(cmd));
 
     Json::Value data;

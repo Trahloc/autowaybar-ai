@@ -57,7 +57,6 @@ namespace Utils {
 
     // Exclusive for Hyprland, wont work with other WM
     namespace Hyprland {
-
         auto getCursorPos() -> std::pair<int, int>; // returns cursor x and y coords
         auto getMonitorsInfo() -> std::vector<monitor_info>;
 
