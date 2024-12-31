@@ -22,18 +22,20 @@ Waybar::Waybar() {
 }
 
 auto Waybar::run(BarMode mode) -> void {
-    if (mode == BarMode::HIDE_UNFOCUSED && std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
-        m_outputs = Utils::Hyprland::getMonitorsInfo();
-        m_full_config = getCurrentML4WConfig();
-        Utils::log(Utils::INFO, "Waybar config found in: {}\n", m_full_config.string());
+    if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
+        if (mode == BarMode::HIDE_UNFOCUSED) {
+            m_outputs = Utils::Hyprland::getMonitorsInfo();
+            m_full_config = getCurrentML4WConfig();
+            Utils::log(Utils::INFO, "Waybar config found in: {}\n", m_full_config.string());
 
-        hideUnfocused();
-    } 
-    else if (mode == BarMode::HIDE_ALL) {
-        hideAllMonitors();
-    } 
+            hideUnfocused();
+        } 
+        else if (mode == BarMode::HIDE_ALL) {
+            hideAllMonitors();
+        } 
+    }
     else {
-        Utils::log(Utils::LogLevel::CRIT, "This mode ONLY supports Hyprland currently.");
+        Utils::log(Utils::CRIT, "This tool ONLY supports Hyprland.");
     }
 
 }
