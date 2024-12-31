@@ -21,7 +21,7 @@ jsoncpp
 In order to build it
 ```bash
 xmake
-xmake run auto-waybar-cpp arguments [args]
+xmake run autowaybar arguments [args]
 ```
 
 ### Todo:
