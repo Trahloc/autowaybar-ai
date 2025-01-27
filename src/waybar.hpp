@@ -11,11 +11,11 @@ using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
 // GLOBALS and CONSTANS
-static bool interruptRequest = false;
-const fs::path HOMEDIR = std::string(std::getenv("HOME"));
+static bool g_interruptRequest = false;
+const fs::path g_HOMEDIR = std::string(std::getenv("HOME"));
 const std::array<fs::path, 2> possible_config_lookup = {
-    HOMEDIR / ".config/ml4w/settings/waybar-theme.sh",
-    HOMEDIR / ".cache/.themestyle.sh"
+    g_HOMEDIR / ".config/ml4w/settings/waybar-theme.sh",
+    g_HOMEDIR / ".cache/.themestyle.sh"
 };
 
 enum class BarMode {
@@ -38,7 +38,7 @@ class Waybar {
         static void handleSignal(int signal) {
             if (signal == SIGINT || signal == SIGTERM) {
                 Utils::log(Utils::WARN, "Interruption detected, saving resources...\n");
-                interruptRequest = true;
+                g_interruptRequest = true;
             }
         }
 

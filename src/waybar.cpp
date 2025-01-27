@@ -42,11 +42,11 @@ auto Waybar::run(BarMode mode) -> void {
 
 // WARNING: For now, it will ONLY suport ML4W dotfiles
 auto Waybar::getCurrentML4WConfig() -> fs::path {
-    const fs::path ml4w_config_root = HOMEDIR / ".config/waybar/themes";
+    const fs::path ml4w_config_root = g_HOMEDIR / ".config/waybar/themes";
     std::string current_config;
 
     // find current config name based on ML4W lookup script locations
-    for (auto& path : possible_config_lookup) {
+    for (const auto& path : possible_config_lookup) {
         if (fs::exists(path)) {
             current_config = Utils::execCommand("cat " + path.string());
             break;
@@ -62,7 +62,6 @@ auto Waybar::getCurrentML4WConfig() -> fs::path {
         // get the stuff
         fs::path config_file { ml4w_config_root / config_name / "config" };
         if (fs::is_regular_file(config_file)) {
-
             Utils::log(Utils::INFO, "Full config file found in: {} \n", config_file.string());
             return config_file;
         }
@@ -82,7 +81,7 @@ auto Waybar::hideAllMonitors() -> void {
     std::signal(SIGTERM, handleSignal);
 
     // hide bar in both monitors
-    while (!interruptRequest) {
+    while (!g_interruptRequest) {
         auto [root_x, root_y] = Utils::Hyprland::getCursorPos();
 
         Utils::log(Utils::LOG, "Found mouse at position ({},{})\n", root_x, root_y);
@@ -124,12 +123,17 @@ auto Waybar::reload() -> void {
 auto Waybar::hideUnfocused() -> void {
     // read initial config
     std::ifstream file(m_full_config);
-    if (!file.is_open()) {
-        throw std::runtime_error("[CRIT] Couldn't open config file.\n");
-    }
+    if (!file) throw std::runtime_error("[CRIT] Couldn't open config file.\n");
+
     Json::Value config;
     file >> config;
     file.close();
+
+    if (config.isArray()) {
+        // std::cerr << "[CRIT] Multiple bars are not supported.\n";
+        Utils::log(Utils::CRIT, "Multiple bars are not supported.\n");
+        std::exit(EXIT_FAILURE);
+    }
 
     // filling output with all monitors in case some are missing
     if (!config["output"].isNull() && config["output"].size() < m_outputs.size()) {
@@ -147,16 +151,15 @@ auto Waybar::hideUnfocused() -> void {
     std::signal(SIGTERM, handleSignal);
 
     // easiest start: only if we have more than 1 monitor
-    if (m_outputs.size() >= 2) {
+    if (m_outputs.size() > 1) {
         // create an overwriteable ofstream
         std::ofstream o_file(m_full_config);
 
         // sort monitors ASCENDING based on x starting position
         std::sort(m_outputs.begin(), m_outputs.end() );
-
         auto [x, y] = Utils::Hyprland::getCursorPos();
 
-        while (!interruptRequest) {
+        while (!g_interruptRequest) {
             Json::Value temp = Json::arrayValue;
             bool need_reload = false; // this is false, until otherwise
             std::string hidden_name;
@@ -194,7 +197,7 @@ auto Waybar::hideUnfocused() -> void {
 
             // only update in something changed
             if (need_reload && !temp.isNull()) {
-                std::cout << "UPDATING.\n";
+                Utils::log(Utils::LOG, "Updating\n");
                 config["output"] = temp;
                 std::cout << "New update: " << config["output"] << "\n";
                 Utils::truncateFile(o_file, m_full_config); // We delete all the file
