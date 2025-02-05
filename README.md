@@ -24,5 +24,57 @@ xmake
 xmake run autowaybar arguments [args]
 ```
 
-### Todo:
-As waybar doesn't allow to ask for the current loaded config path (as far as I know), it would be nice to default search for the `config.json` in the valid directories listed in the [waybar wiki](https://github.com/Alexays/Waybar/wiki/Configuration#config-file) and add and envar to check if we are in ML4W folder structure.
+## Todo:
+
+### HIDE ALL ###
+Necesito:
+- saber la posicion del mouse (hyprctl)
+
+**Accion**:
+- SIGUSR1 (implementada en waybar, toggle visibility)
+
+**Ventajas**:
+- funciona en cualquier waybar
+
+**Problema**:
+- Depende de Hyprland (not really a problem)
+
+---
+
+### HIDE FOCUSED ###
+**Necesito**:
+- Saber la posicion del mouse (hyprctl)
+- Saber los monitores que tienes mediante (hyprctl),
+- saber donde esta el config.json y el style.css (ahora mismo ML4W).
+
+**Accion**:
+- Cambiar los outputs en tiempo real del config.jsonc
+- SIGUSR2 (reload hyprland with new config)
+
+**Problemas**:
+- No tengo manera de preguntar a waybar por su config.jsonc
+  por eso dependo de una busqueda cutre y no portable del config
+  de ML4W. 
+
+---
+### Solucion 1
+Cambiar el src de waybar para que haya un comando que exponga el
+path de config.
+
+**Desventajas**:
+- Tengo que encontrar que modificar en el src
+- Tengo que crear pull request y ser aceptada (improbable porque
+un comando es demasiado intrusivo)
+- Ahora dependo de auto-waybar y de la PR
+
+**Ventajas**
+- Ya no dependo de que se haya podido encontrar la config.json y
+podria funcionar con cualquier configuracion de waybar
+
+### Solucion 2
+que SIGUSR2 (reload) printee al stdout la config y asi
+poder pillarla.
+
+**Ventajas**
+- no tan intrusivo
+
