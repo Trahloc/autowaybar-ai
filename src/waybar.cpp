@@ -10,8 +10,61 @@
 #include <stdexcept>
 #include <thread>
 
-Waybar::Waybar() {
+// Exclusive for Hyprland, wont work with other WM
+namespace Hyprland {
 
+    // returns cursor x and y coords
+    auto getCursorPos() -> std::pair<int, int> {
+        const std::string cmd = "hyprctl cursorpos";
+        std::istringstream stream(Utils::execCommand(cmd));
+
+        int xpos, ypos;
+        char basurilla;
+        if (stream >> xpos >> basurilla >> ypos)
+            return std::pair<int, int>{xpos, ypos};
+
+        return std::pair<int, int>{-1, -1};
+    }
+
+    // returns a vector with the monitor information provided by Hyprland
+    auto getMonitorsInfo() -> std::vector<monitor_info_t> {
+        const std::string cmd = "hyprctl monitors all -j";
+        std::istringstream stream(Utils::execCommand(cmd));
+
+        Json::Value data;
+        stream >> data;
+
+        std::vector<monitor_info_t> monitors;
+        monitors.reserve(2);
+
+        // fetch all monitors info
+        for (int i = 0; i < data.size(); ++i) {
+            monitor_info_t temp;
+
+            // names
+            if (!data[i]["name"].empty()) {
+                temp.name = data[i]["name"].asString();
+            }
+
+            // x coord
+            if (!data[i]["x"].empty()) {
+                temp.x_coord = data[i]["x"].asInt();
+            }
+
+            if (!data[i]["width"].empty()) {
+                temp.width = data[i]["width"].asInt();
+            }
+
+            Utils::log(Utils::LogLevel::LOG, "Monitor named {} found in x: {}, width: {}. \n", temp.name, temp.x_coord, temp.width);
+            monitors.push_back(temp);
+        }
+
+        return monitors;
+    }
+
+} // namespace Hyprland
+
+Waybar::Waybar() {
     try {
         m_waybar_pid = std::stoi(Utils::execCommand("pidof waybar"));
     } catch(std::exception& e) {
@@ -24,24 +77,44 @@ Waybar::Waybar() {
 auto Waybar::run(BarMode mode) -> void {
     if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
         if (mode == BarMode::HIDE_UNFOCUSED) {
-            m_outputs = Utils::Hyprland::getMonitorsInfo();
-            m_full_config = getCurrentML4WConfig();
-            Utils::log(Utils::INFO, "Waybar config found in: {}\n", m_full_config.string());
+
+            m_outputs = Hyprland::getMonitorsInfo();
+            auto [m_config_path, m_style_path] = getConfigAndStyle();
+
+            if (!m_config_path.empty() && !m_style_path.empty()) {
+                Utils::log(Utils::INFO, "Waybar config found in: {}\n", m_config_path.string());
+                Utils::log(Utils::INFO, "Waybar style found in: {}\n", m_style_path.string());
+            } else {
+                /* fallbackConfigAndStyle(); */
+            }
 
             hideUnfocused();
-        } 
+        }
         else if (mode == BarMode::HIDE_ALL) {
             hideAllMonitors();
-        } 
+        }
     }
     else {
         Utils::log(Utils::CRIT, "This tool ONLY supports Hyprland.");
     }
+}
 
+auto Waybar::getConfigAndStyle() -> std::pair<fs::path, fs::path> {
+
+    auto proc_command = Utils::getProcArgs(m_waybar_pid);
+
+    auto find = proc_command.find("-c");
+    if (find != std::string::npos) {
+       proc_command.erase(proc_command.begin(), proc_command.begin() + find);
+       std::cout << "PITO: " << proc_command;
+    }
+
+
+    return {};
 }
 
 // WARNING: For now, it will ONLY suport ML4W dotfiles
-auto Waybar::getCurrentML4WConfig() -> fs::path {
+/* auto Waybar::getCurrentML4WConfig() -> fs::path {
     const fs::path ml4w_config_root = g_HOMEDIR / ".config/waybar/themes";
     std::string current_config;
 
@@ -69,7 +142,7 @@ auto Waybar::getCurrentML4WConfig() -> fs::path {
     }
 
     return {};
-}
+} */
 
 
 auto Waybar::hideAllMonitors() -> void {
@@ -82,7 +155,7 @@ auto Waybar::hideAllMonitors() -> void {
 
     // hide bar in both monitors
     while (!g_interruptRequest) {
-        auto [root_x, root_y] = Utils::Hyprland::getCursorPos();
+        auto [root_x, root_y] = Hyprland::getCursorPos();
 
         Utils::log(Utils::LOG, "Found mouse at position ({},{})\n", root_x, root_y);
 
@@ -92,12 +165,12 @@ auto Waybar::hideAllMonitors() -> void {
             kill(m_waybar_pid, SIGUSR1);
             open = true;
 
-            auto temp = Utils::Hyprland::getCursorPos();
+            auto temp = Hyprland::getCursorPos();
 
             // keep it open
             while (temp.second < m_bar_threshold) {
                 std::this_thread::sleep_for(80ms);
-                temp = Utils::Hyprland::getCursorPos();
+                temp = Hyprland::getCursorPos();
             }
 
         }
@@ -122,7 +195,7 @@ auto Waybar::reload() -> void {
 
 auto Waybar::hideUnfocused() -> void {
     // read initial config
-    std::ifstream file(m_full_config);
+    std::ifstream file(m_config_path);
     if (!file) throw std::runtime_error("[CRIT] Couldn't open config file.\n");
 
     Json::Value config;
@@ -153,11 +226,11 @@ auto Waybar::hideUnfocused() -> void {
     // easiest start: only if we have more than 1 monitor
     if (m_outputs.size() > 1) {
         // create an overwriteable ofstream
-        std::ofstream o_file(m_full_config);
+        std::ofstream o_file(m_config_path);
 
         // sort monitors ASCENDING based on x starting position
         std::sort(m_outputs.begin(), m_outputs.end() );
-        auto [x, y] = Utils::Hyprland::getCursorPos();
+        auto [x, y] = Hyprland::getCursorPos();
 
         while (!g_interruptRequest) {
             Json::Value temp = Json::arrayValue;
@@ -200,7 +273,7 @@ auto Waybar::hideUnfocused() -> void {
                 Utils::log(Utils::LOG, "Updating\n");
                 config["output"] = temp;
                 std::cout << "New update: " << config["output"] << "\n";
-                Utils::truncateFile(o_file, m_full_config); // We delete all the file
+                Utils::truncateFile(o_file, m_config_path); // We delete all the file
                 o_file << config;
                 o_file.close();
                 reload();
@@ -208,13 +281,13 @@ auto Waybar::hideUnfocused() -> void {
 
             // wait and update mouse
             std::this_thread::sleep_for(80ms);
-            std::tie(x,y) = Utils::Hyprland::getCursorPos();
+            std::tie(x,y) = Hyprland::getCursorPos();
             Utils::log(Utils::INFO, "Mouse ({},{})\n", x,y);
         }
 
         // restore original config
         config["output"] = initial_outputs;
-        Utils::truncateFile(o_file, m_full_config);
+        Utils::truncateFile(o_file, m_config_path);
         o_file << config;
         o_file.close();
         reload();
@@ -224,5 +297,4 @@ auto Waybar::hideUnfocused() -> void {
         Utils::log(Utils::WARN, "This feature requieres a minimum of 2 monitors.\n");
         return;
     }
-
 }

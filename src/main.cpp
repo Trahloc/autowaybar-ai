@@ -1,5 +1,6 @@
 #include <getopt.h>
 #include "waybar.hpp"
+#include <iostream>
 #include <unistd.h>
 
 auto printHelp() -> void {
@@ -25,15 +26,9 @@ auto main(int argc, char *argv[]) -> int {
 
     while ((opt = getopt_long(argc, argv, short_opts, long_opts, nullptr)) != -1) {
         switch (opt) {
-        case 'm':
-            mode = optarg;
-            break;
-        case 'h':
-            helpFlag = true;
-            break;
-        default:
-            printHelp();
-            return 1;
+        case 'm': mode = optarg; break;
+        case 'h': helpFlag = true; break;
+        default: printHelp(); return 1;
         }
     }
 
@@ -54,11 +49,9 @@ auto main(int argc, char *argv[]) -> int {
         return 1;
     }
 
-    {
-        Waybar bar;
-        bar.run((mode == "all") ? BarMode::HIDE_ALL : BarMode::HIDE_UNFOCUSED);
-    }
-
+    Waybar bar;
+    bar.run((mode == "all") ? BarMode::HIDE_ALL : BarMode::HIDE_UNFOCUSED);
+    
     return 0;
 }
 

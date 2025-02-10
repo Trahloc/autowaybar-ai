@@ -1,7 +1,21 @@
 #include "utils.hpp"
+#include <fstream>
 #include <istream>
 #include <stdexcept>
+#include <string>
 #include <unistd.h>
+
+auto Utils::getProcArgs(const pid_t pid) -> std::string {
+    std::string pid_s = std::to_string(pid);
+    std::ifstream proc_args("/proc/" + pid_s + "/cmdline");
+
+    if (proc_args.is_open()) {
+        std::string info;
+        std::getline(proc_args, info);
+        return info;
+    } else
+        throw std::runtime_error("Invalid PID: " + pid_s);
+}
 
 auto Utils::truncateFile(std::ofstream& file, const fs::path& filepath) -> void {
     file.close();
@@ -30,51 +44,16 @@ auto Utils::execCommand(const std::string& command) -> std::string {
     return result;
 }
 
-// returns cursor x and y coords
-auto Utils::Hyprland::getCursorPos() -> std::pair<int, int> {
-    const std::string cmd = "hyprctl cursorpos";
-    std::istringstream stream(Utils::execCommand(cmd));
-
-    int xpos, ypos;
-    char basurilla;
-    if (stream >> xpos >> basurilla >> ypos)
-        return std::pair<int, int>{xpos, ypos};
-
-    return std::pair<int, int>{-1, -1};
-}
-
-
-auto Utils::Hyprland::getMonitorsInfo() -> std::vector<monitor_info> {
-    const std::string cmd = "hyprctl monitors all -j";
-    std::istringstream stream(Utils::execCommand(cmd));
-
-    Json::Value data;
-    stream >> data;
-    
-    std::vector<monitor_info> monitors;
-    monitors.reserve(2);
-
-    // fetch all monitors info
-    for (int i = 0; i < data.size(); ++i) {
-        monitor_info temp;
-
-        // names
-        if (!data[i]["name"].empty()) {
-            temp.name = data[i]["name"].asString();
-        }
-        
-        // x coord
-        if (!data[i]["x"].empty()) {
-            temp.x_coord = data[i]["x"].asInt();
-        }
-
-        if (!data[i]["width"].empty()) {
-            temp.width = data[i]["width"].asInt();
-        }
-
-        Utils::log(LogLevel::LOG, "Monitor named {} found in x: {}, width: {}. \n", temp.name, temp.x_coord, temp.width);
-        monitors.push_back(temp);
+template <typename... Args>
+auto Utils::log(Utils::LogLevel level, const std::string &fmt, Args &&...args) -> void {
+    switch (level) {
+        case NONE: break;
+        case LOG: std::cout << "[" << GRAY << "LOG" << RESET << "] "; break;
+        case WARN: std::cout << "[" << YELLOW << "WARN" << RESET << "] "; break;
+        case ERR: std::cout << "[" << ORANGE << "ERR" << RESET << "] "; break;
+        case CRIT: std::cout << "[" << RED << "CRIT" << RESET << "] "; break;
+        case INFO: std::cout << "[" << BLUE << "INFO" << RESET << "] "; break;
+        case TRACE: std::cout << "[" << GRAY << "TRACE" << RESET << "] "; break;
     }
-
-    return monitors;
+    fmt::print(fmt::runtime(fmt), std::forward<Args>(args)...);
 }
