@@ -1,7 +1,6 @@
-#include <getopt.h>
 #include "waybar.hpp"
 #include <iostream>
-#include <unistd.h>
+#include <getopt.h>
 
 auto printHelp() -> void {
     std::cout << "Usage: \n" << 

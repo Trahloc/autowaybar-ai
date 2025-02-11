@@ -5,7 +5,6 @@
 #include <signal.h>
 #include <vector>
 #include <array>
-#include "utils.h"
 #include "utils.hpp"
 
 using namespace std::chrono_literals;
@@ -18,8 +17,6 @@ const std::array<fs::path, 2> g_possible_config_lookup = {
     g_HOMEDIR / ".config/waybar/config.jsonc", // TODO: PUT THE DEFAULT PATHS
     g_HOMEDIR / ".cache/.themestyle.sh"
 };
-
-
 
 // TYPES
 struct monitor_info_t {
@@ -51,7 +48,7 @@ class Waybar {
     private:
         auto hideAllMonitors() -> void;
         auto hideUnfocused() -> void;
-        auto getConfigAndStyle() -> std::pair<fs::path, fs::path>; // TODO: IMPLEMENT
+        auto getConfigPath() -> fs::path; // TODO: IMPLEMENT
 
         static void handleSignal(int signal) {
             if (signal == SIGINT || signal == SIGTERM) {
@@ -63,6 +60,5 @@ class Waybar {
         pid_t m_waybar_pid;
         const int m_bar_threshold = 43;
         fs::path m_config_path;
-        fs::path m_style_path;
         std::vector<monitor_info_t> m_outputs;
 };

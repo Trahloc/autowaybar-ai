@@ -43,17 +43,3 @@ auto Utils::execCommand(const std::string& command) -> std::string {
 
     return result;
 }
-
-template <typename... Args>
-auto Utils::log(Utils::LogLevel level, const std::string &fmt, Args &&...args) -> void {
-    switch (level) {
-        case NONE: break;
-        case LOG: std::cout << "[" << GRAY << "LOG" << RESET << "] "; break;
-        case WARN: std::cout << "[" << YELLOW << "WARN" << RESET << "] "; break;
-        case ERR: std::cout << "[" << ORANGE << "ERR" << RESET << "] "; break;
-        case CRIT: std::cout << "[" << RED << "CRIT" << RESET << "] "; break;
-        case INFO: std::cout << "[" << BLUE << "INFO" << RESET << "] "; break;
-        case TRACE: std::cout << "[" << GRAY << "TRACE" << RESET << "] "; break;
-    }
-    fmt::print(fmt::runtime(fmt), std::forward<Args>(args)...);
-}

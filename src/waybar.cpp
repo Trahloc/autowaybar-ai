@@ -77,18 +77,18 @@ Waybar::Waybar() {
 auto Waybar::run(BarMode mode) -> void {
     if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
         if (mode == BarMode::HIDE_UNFOCUSED) {
-
             m_outputs = Hyprland::getMonitorsInfo();
-            auto [m_config_path, m_style_path] = getConfigAndStyle();
+            m_config_path = getConfigPath();
 
-            if (!m_config_path.empty() && !m_style_path.empty()) {
+            if (!m_config_path.empty()) {
                 Utils::log(Utils::INFO, "Waybar config found in: {}\n", m_config_path.string());
-                Utils::log(Utils::INFO, "Waybar style found in: {}\n", m_style_path.string());
+                hideUnfocused();
             } else {
-                /* fallbackConfigAndStyle(); */
+                //m_config_path = getFallBackConfig(); 
+                // hideUnfocused();
+                throw std::runtime_error("[TODO] Waybar was launched using a default config.");
             }
 
-            hideUnfocused();
         }
         else if (mode == BarMode::HIDE_ALL) {
             hideAllMonitors();
@@ -99,51 +99,29 @@ auto Waybar::run(BarMode mode) -> void {
     }
 }
 
-auto Waybar::getConfigAndStyle() -> std::pair<fs::path, fs::path> {
+auto Waybar::getConfigPath() -> fs::path {
+    auto str_cmd = Utils::getProcArgs(m_waybar_pid);
 
-    auto proc_command = Utils::getProcArgs(m_waybar_pid);
-
-    auto find = proc_command.find("-c");
+    auto find = str_cmd.find("-c");
     if (find != std::string::npos) {
-       proc_command.erase(proc_command.begin(), proc_command.begin() + find);
-       std::cout << "PITO: " << proc_command;
-    }
+       str_cmd.erase(str_cmd.begin(), str_cmd.begin() + find + 2);
+       find = str_cmd.find("-s");
 
+        if (find != std::string::npos) {
+            str_cmd.erase(str_cmd.begin() + find, str_cmd.end());
+
+            // strip special characters
+            str_cmd.erase(
+                std::remove(str_cmd.begin(), str_cmd.end(), '\000'), 
+                str_cmd.end()
+            );
+            
+            return str_cmd;
+       }
+    }
 
     return {};
 }
-
-// WARNING: For now, it will ONLY suport ML4W dotfiles
-/* auto Waybar::getCurrentML4WConfig() -> fs::path {
-    const fs::path ml4w_config_root = g_HOMEDIR / ".config/waybar/themes";
-    std::string current_config;
-
-    // find current config name based on ML4W lookup script locations
-    for (const auto& path : possible_config_lookup) {
-        if (fs::exists(path)) {
-            current_config = Utils::execCommand("cat " + path.string());
-            break;
-        }
-    }
-
-    if (!current_config.empty()) {
-        // parse current config
-        int delimiter = current_config.find(";");
-        auto config_name = current_config.substr(1, delimiter - 1);
-        Utils::log(Utils::INFO, "Current theme: {} \n", config_name);
-
-        // get the stuff
-        fs::path config_file { ml4w_config_root / config_name / "config" };
-        if (fs::is_regular_file(config_file)) {
-            Utils::log(Utils::INFO, "Full config file found in: {} \n", config_file.string());
-            return config_file;
-        }
-
-    }
-
-    return {};
-} */
-
 
 auto Waybar::hideAllMonitors() -> void {
     bool open = false;
@@ -195,8 +173,12 @@ auto Waybar::reload() -> void {
 
 auto Waybar::hideUnfocused() -> void {
     // read initial config
+    Utils::log(Utils::TRACE, "Opening config path {} \n", m_config_path.string());
     std::ifstream file(m_config_path);
-    if (!file) throw std::runtime_error("[CRIT] Couldn't open config file.\n");
+
+    if (!file) {
+        throw std::runtime_error("[CRIT] Couldn't open config file.\n");
+    }
 
     Json::Value config;
     file >> config;

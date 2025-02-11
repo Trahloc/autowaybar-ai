@@ -1,0 +1,40 @@
+{
+    "tasks": [
+        {   
+            "type": "process",
+            "label": "Run",
+            "command" : "${workspaceFolder}/build/linux/x86_64/debug/autowaybar",
+            "args": [
+                "-m",
+                "unfocused"
+            ]
+        },
+        {
+            "type" : "shell",
+            "label": "Set Debug Mode",
+            "command" : "xmake",
+            "args" : [
+                "f",
+                "-m",
+                "debug"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+            }
+        },
+        {
+            "type" : "shell",
+            "label" : "Compile",
+            "command" : "xmake",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label" : "Xmake Debug Proyect",
+            "dependsOn" : [ "Set Debug Mode", "Compile"]
+        }
+       
+    ],
+    "version": "2.0.0"
+}
