@@ -3,6 +3,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <algorithm>
 #include <iostream>
@@ -74,21 +75,31 @@ Waybar::Waybar() {
 
 }
 
+// returns the default config file if found
+auto Waybar::getFallBackConfig() -> fs::path {
+    for (auto path : g_possible_config_lookup) {
+        if (fs::exists(path) || fs::exists(path.replace_extension(fs::path{".jsonc"})))
+            return path;
+    }
+    return {};
+}
+
 auto Waybar::run(BarMode mode) -> void {
     if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
-        if (mode == BarMode::HIDE_UNFOCUSED) {
+        if (mode == BarMode::HIDE_FOCUSED) {
             m_outputs = Hyprland::getMonitorsInfo();
             m_config_path = getConfigPath();
 
-            if (!m_config_path.empty()) {
-                Utils::log(Utils::INFO, "Waybar config found in: {}\n", m_config_path.string());
-                hideUnfocused();
-            } else {
-                //m_config_path = getFallBackConfig(); 
-                // hideUnfocused();
-                throw std::runtime_error("[TODO] Waybar was launched using a default config.");
+            if (m_config_path.empty()) {
+                m_config_path = getFallBackConfig();
+                if (m_config_path.empty())
+                    throw std::runtime_error("Unable to find Waybar config.\n");
             }
 
+            Utils::log(Utils::INFO, "Waybar config file found in '{}'\n", m_config_path.string());
+            Utils::log(Utils::INFO, "Launching Hide Focused Mode\n");
+
+            hideFocused();
         }
         else if (mode == BarMode::HIDE_ALL) {
             hideAllMonitors();
@@ -171,9 +182,8 @@ auto Waybar::reload() -> void {
     kill(m_waybar_pid, SIGUSR2);
 }
 
-auto Waybar::hideUnfocused() -> void {
+auto Waybar::hideFocused() -> void {
     // read initial config
-    Utils::log(Utils::TRACE, "Opening config path {} \n", m_config_path.string());
     std::ifstream file(m_config_path);
 
     if (!file) {
@@ -185,7 +195,6 @@ auto Waybar::hideUnfocused() -> void {
     file.close();
 
     if (config.isArray()) {
-        // std::cerr << "[CRIT] Multiple bars are not supported.\n";
         Utils::log(Utils::CRIT, "Multiple bars are not supported.\n");
         std::exit(EXIT_FAILURE);
     }
@@ -221,13 +230,13 @@ auto Waybar::hideUnfocused() -> void {
 
             for (auto& mon : m_outputs) {
                 if (mon.x_coord + mon.width < x && mon.hidden){
-                    // si estas a mi izquierda oculto -> mostrar
+                    // if left hidden -> show
                     Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
                     mon.hidden = false;
                     need_reload = true;
                 }
                 else if (mon.x_coord < x && mon.x_coord + mon.width > x && !mon.hidden) {
-                    // si estas en mi monitor y no estas oculto -> hide
+                    // if current monitor shown -> hide it
                     Utils::log(Utils::INFO, "Mon: {} needs to be hidden.\n", mon.name);
                     mon.hidden = true;
                     hidden_name = mon.name;
@@ -235,7 +244,7 @@ auto Waybar::hideUnfocused() -> void {
                     break;
                 }
                 else if (mon.x_coord > x && mon.hidden) {
-                    // si esta a la derecha y oculto -> mostrar
+                    // if right hidden -> show
                     Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
                     mon.hidden = false;
                     need_reload = true;

@@ -13,9 +13,10 @@ namespace fs = std::filesystem;
 // GLOBALS and CONSTANS
 static bool g_interruptRequest = false;
 const fs::path g_HOMEDIR = std::string(std::getenv("HOME"));
-const std::array<fs::path, 2> g_possible_config_lookup = {
-    g_HOMEDIR / ".config/waybar/config.jsonc", // TODO: PUT THE DEFAULT PATHS
-    g_HOMEDIR / ".cache/.themestyle.sh"
+const std::array<fs::path, 3> g_possible_config_lookup = {
+    g_HOMEDIR / ".config/waybar/config", 
+    g_HOMEDIR / "waybar/config",
+    "etc/xdg/waybar/config"
 };
 
 // TYPES
@@ -35,7 +36,7 @@ struct monitor_info_t {
 
 enum class BarMode {
     HIDE_ALL,
-    HIDE_UNFOCUSED
+    HIDE_FOCUSED
 };
 
 class Waybar {
@@ -47,8 +48,9 @@ class Waybar {
 
     private:
         auto hideAllMonitors() -> void;
-        auto hideUnfocused() -> void;
+        auto hideFocused() -> void;
         auto getConfigPath() -> fs::path; // TODO: IMPLEMENT
+        auto getFallBackConfig() -> fs::path;
 
         static void handleSignal(int signal) {
             if (signal == SIGINT || signal == SIGTERM) {

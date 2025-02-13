@@ -5,7 +5,7 @@
 auto printHelp() -> void {
     std::cout << "Usage: \n" << 
         "autowaybar -m <MODE>\n" <<
-        "   MODE= all, unfocused\n" << 
+        "   MODE= all, focused\n" << 
         "autowaybar -h | --help\n" << 
         "   Prints this help\n";
 }
@@ -42,14 +42,14 @@ auto main(int argc, char *argv[]) -> int {
         return 1;
     }
 
-    if (mode != "all" && mode != "unfocused") {
-        std::cerr << "Error: Invalid mode value. Allowed values are 'all' or 'unfocused'.\n";
+    if (mode != "all" && mode != "focused") {
+        std::cerr << "Error: Invalid mode value. Allowed values are 'all' or 'focused'.\n";
         printHelp();
         return 1;
     }
 
     Waybar bar;
-    bar.run((mode == "all") ? BarMode::HIDE_ALL : BarMode::HIDE_UNFOCUSED);
+    bar.run((mode == "all") ? BarMode::HIDE_ALL : BarMode::HIDE_FOCUSED);
     
     return 0;
 }
