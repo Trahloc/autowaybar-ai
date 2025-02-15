@@ -25,3 +25,7 @@ In order to build it
 xmake
 xmake run autowaybar arguments [args]
 ```
+or manually
+```bash
+g++ src/*.cpp src/*.hpp src/*.h -o autowaybar -lfmt -ljsoncpp -O3 -march=native
+``` 
