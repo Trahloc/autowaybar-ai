@@ -3,7 +3,7 @@
 #include <getopt.h>
 
 auto printHelp() -> void {
-    static std::string help {
+    static const std::string help {
         "Usage: \n" 
         "autowaybar -m <MODE>\n" 
         "   MODE= all, focused\n" 
