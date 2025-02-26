@@ -53,7 +53,7 @@ class Waybar {
         auto getFallBackConfig() -> fs::path;
 
         static void handleSignal(int signal) {
-            if (signal == SIGINT || signal == SIGTERM) {
+            if (signal == SIGINT || signal == SIGTERM || signal == SIGHUP) {
                 Utils::log(Utils::WARN, "Interruption detected, saving resources...\n");
                 g_interruptRequest = true;
             }

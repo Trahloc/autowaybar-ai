@@ -141,6 +141,7 @@ auto Waybar::hideAllMonitors() -> void {
 
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
+    std::signal(SIGHUP, handleSignal);
 
     // hide bar in both monitors
     while (!g_interruptRequest) {
@@ -213,6 +214,7 @@ auto Waybar::hideFocused() -> void {
 
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
+    std::signal(SIGHUP, handleSignal);
 
     // easiest start: only if we have more than 1 monitor
     if (m_outputs.size() > 1) {
