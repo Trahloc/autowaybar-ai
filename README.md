@@ -20,12 +20,20 @@ jsoncpp
 - `autowaybar -m focused`: Will hide waybar in the focused monitor only. 
 
 ### Build
-In order to build it
+In order to build it:
 ```bash
 xmake
-xmake run autowaybar arguments [args]
 ```
-or manually
+or manually:
 ```bash
 g++ src/*.cpp src/*.hpp src/*.h -o autowaybar -lfmt -ljsoncpp -O3 -march=native
-``` 
+```
+### Run
+Now you can run it by doing:
+```bash
+xmake run autowaybar arguments [args]
+```
+or you can install it to your path by doing:
+```bash
+xmake install --admin
+```
