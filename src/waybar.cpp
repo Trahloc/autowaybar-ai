@@ -1,15 +1,14 @@
-#include "waybar.hpp"
-#include "utils.hpp"
+#include <algorithm>
 #include <csignal>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
-#include <algorithm>
-#include <iostream>
 #include <json/value.h>
 #include <stdexcept>
 #include <thread>
+#include "utils.hpp"
+#include "waybar.hpp"
 
 // Exclusive for Hyprland, wont work with other WM
 namespace Hyprland {
@@ -78,7 +77,8 @@ Waybar::Waybar() {
 // returns the default config file if found
 auto Waybar::getFallBackConfig() -> fs::path {
     for (auto path : g_possible_config_lookup) {
-        if (fs::exists(path) || fs::exists(path.replace_extension(fs::path{".jsonc"})))
+        if (fs::exists(path) || 
+            fs::exists(path.replace_extension(fs::path{".jsonc"})))
             return path;
     }
     return {};
@@ -115,20 +115,20 @@ auto Waybar::getConfigPath() -> fs::path {
 
     auto find = str_cmd.find("-c");
     if (find != std::string::npos) {
-       str_cmd.erase(str_cmd.begin(), str_cmd.begin() + find + 2);
-       find = str_cmd.find("-s");
+        str_cmd.erase(str_cmd.begin(), str_cmd.begin() + find + 2);
+        find = str_cmd.find("-s");
 
         if (find != std::string::npos) {
             str_cmd.erase(str_cmd.begin() + find, str_cmd.end());
 
             // strip special characters
             str_cmd.erase(
-                std::remove(str_cmd.begin(), str_cmd.end(), '\000'), 
+                std::remove(str_cmd.begin(), str_cmd.end(), '\000'),
                 str_cmd.end()
             );
-            
+
             return str_cmd;
-       }
+        }
     }
 
     return {};
@@ -263,7 +263,7 @@ auto Waybar::hideFocused() -> void {
             if (need_reload && !temp.isNull()) {
                 Utils::log(Utils::LOG, "Updating\n");
                 config["output"] = temp;
-                std::cout << "New update: " << config["output"] << "\n";
+                Utils::log(Utils::LOG, "New update: {}", fmt::streamed(config["output"]));
                 Utils::truncateFile(o_file, m_config_path); // We delete all the file
                 o_file << config;
                 o_file.close();

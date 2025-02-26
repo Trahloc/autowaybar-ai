@@ -1,13 +1,16 @@
+#include "utils.hpp"
 #include "waybar.hpp"
-#include <iostream>
 #include <getopt.h>
 
 auto printHelp() -> void {
-    std::cout << "Usage: \n" << 
-        "autowaybar -m <MODE>\n" <<
-        "   MODE= all, focused\n" << 
-        "autowaybar -h | --help\n" << 
-        "   Prints this help\n";
+    static std::string help {
+        "Usage: \n" 
+        "autowaybar -m <MODE>\n" 
+        "   MODE= all, focused\n" 
+        "autowaybar -h | --help\n" 
+        "   Prints this help\n"
+    };
+    Utils::log(Utils::INFO, help); 
 }
 
 auto main(int argc, char *argv[]) -> int {
@@ -37,13 +40,13 @@ auto main(int argc, char *argv[]) -> int {
     }
 
     if (mode.empty()) {
-        std::cerr << "Error: -m / --mode is mandatory.\n";
+        Utils::log(Utils::CRIT, "Error: -m / --mode is mandatory.\n");
         printHelp();
         return 1;
     }
 
     if (mode != "all" && mode != "focused") {
-        std::cerr << "Error: Invalid mode value. Allowed values are 'all' or 'focused'.\n";
+        Utils::log(Utils::CRIT, "Error: Invalid mode value. Allowed values are 'all' or 'focused'.\n");
         printHelp();
         return 1;
     }

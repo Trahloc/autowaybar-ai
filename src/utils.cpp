@@ -28,7 +28,7 @@ auto Utils::execCommand(const std::string& command) -> std::string {
     FILE* pipe = popen(command.c_str(), "r");
 
     if (!pipe) {
-        std::cerr << "[ERR] Failed to execute command: " << command << ".\n";
+        Utils::log(Utils::ERR, "Failed to execute command: {}", command);
         return {};
     }
 

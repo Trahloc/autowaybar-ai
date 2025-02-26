@@ -1,15 +1,15 @@
 #pragma once
 
 #include <csignal>
-#include <fstream>
-#include <iostream>
+#include <filesystem>
 #include <fmt/base.h>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/ostream.h>
+#include <fmt/color.h>
+#include <fstream>
 #include <json/json.h>
 #include <string>
-#include <fmt/core.h>
-#include <filesystem>
-#include "colors.h"
 
 namespace fs = std::filesystem;
 
@@ -31,15 +31,15 @@ namespace Utils {
     template <typename... Args>
     auto log(Utils::LogLevel level, const std::string &fmt, Args&&... args) -> void {
         switch (level) {
-                case NONE: break;
-                case LOG: std::cout << "[" << GRAY << "LOG" << RESET << "] "; break;
-                case WARN: std::cout << "[" << YELLOW << "WARN" << RESET << "] "; break;
-                case ERR: std::cout << "[" << ORANGE << "ERR" << RESET << "] "; break;
-                case CRIT: std::cout << "[" << RED << "CRIT" << RESET << "] "; break;
-                case INFO: std::cout << "[" << BLUE << "INFO" << RESET << "] "; break;
-                case TRACE: std::cout << "[" << GRAY << "TRACE" << RESET << "] "; break;
-            }
-            fmt::print(fmt::runtime(fmt), std::forward<Args>(args)...);
+            case NONE: break;
+            case LOG: fmt::print("[{}] ", fmt::styled("LOG", fmt::fg(fmt::color::gray))); break;
+            case WARN: fmt::print("[{}] ", fmt::styled("WARN", fmt::fg(fmt::color::yellow))); break;
+            case ERR: fmt::print("[{}] ", fmt::styled("ERR", fmt::fg(fmt::color::orange))); break;
+            case CRIT: fmt::print("[{}] ", fmt::styled("CRIT", fmt::fg(fmt::color::red))); break;
+            case INFO: fmt::print("[{}] ", fmt::styled("INFO", fmt::fg(fmt::color::light_blue))); break;
+            case TRACE: fmt::print("[{}] ", fmt::styled("TRACE", fmt::fg(fmt::color::light_gray))); break;
+        }
+        fmt::print(fmt::runtime(fmt), std::forward<Args>(args)...);
     }
 
 } // namespace Utils
