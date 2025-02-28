@@ -37,3 +37,16 @@ or you can install it to your path by doing:
 ```bash
 xmake install --admin
 ```
+### Sample bind config for waybar & autowaybar in hyprland.conf
+```
+# waybar start OR restart 
+bind=$mainMod, W, exec, if ! pgrep waybar; then waybar & else killall -SIGUSR2 waybar & fi
+#autohide with autowaybar
+bind=$mainMod, A, exec, autowaybar -m all
+bind=$mainMod SHIFT, A, exec, killall -9 autowaybar
+```
+### Know your monitors and their names for multi-monitor
+```bash
+hyprctl monitors | grep Monitor
+Monitor eDP-1 (ID 0):
+```
