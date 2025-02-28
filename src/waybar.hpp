@@ -10,9 +10,11 @@
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
-// GLOBALS and CONSTANS
+// globals and constants
 static bool g_interruptRequest = false;
+
 const fs::path g_HOMEDIR = std::string(std::getenv("HOME"));
+
 const std::array<fs::path, 3> g_possible_config_lookup = {
     g_HOMEDIR / ".config/waybar/config",
     g_HOMEDIR / "waybar/config",
@@ -34,23 +36,26 @@ struct monitor_info_t {
     }
 };
 
-enum class BarMode {
+enum class BarMode : std::uint8_t {
     HIDE_ALL,
-    HIDE_FOCUSED
+    HIDE_FOCUSED,
+    NONE
 };
 
 class Waybar {
     public:
-        Waybar();
+        Waybar(BarMode mode);
+        Waybar(BarMode mode, int threshold);
 
-        auto run(BarMode mode) -> void; // calls the apropiate operation mode
+        auto run() -> void; // calls the apropiate operation mode
         auto reload() -> void; // sigusr2
-
+        auto setBarMode(BarMode mode);
     private:
         auto hideAllMonitors() -> void;
         auto hideFocused() -> void;
-        auto getConfigPath() -> fs::path;
-        auto getFallBackConfig() -> fs::path;
+        auto initConfigPath() -> fs::path;
+        auto initFallBackConfig() -> fs::path;
+        auto initPid() -> pid_t;
 
         static void handleSignal(int signal) {
             if (signal == SIGINT || signal == SIGTERM || signal == SIGHUP) {
@@ -60,7 +65,8 @@ class Waybar {
         }
 
         pid_t m_waybar_pid;
-        const int m_bar_threshold = 43;
-        fs::path m_config_path;
-        std::vector<monitor_info_t> m_outputs;
+        BarMode m_original_mode = BarMode::NONE;
+        int m_bar_threshold = 50;
+        fs::path m_config_path{};
+        std::vector<monitor_info_t> m_outputs{};
 };

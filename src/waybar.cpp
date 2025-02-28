@@ -64,18 +64,34 @@ namespace Hyprland {
 
 } // namespace Hyprland
 
-Waybar::Waybar() {
+auto Waybar::initPid() -> pid_t {
     try {
-        m_waybar_pid = std::stoi(Utils::execCommand("pidof waybar"));
+        return std::stoi(Utils::execCommand("pidof waybar"));
     } catch(std::exception& e) {
         Utils::log(Utils::CRIT, "Waybar is not running.\n");
-        std::exit(0);
+        std::exit(EXIT_FAILURE);
     }
+}
 
+
+Waybar::Waybar(BarMode mode)
+    : m_original_mode(mode),
+      m_config_path(initConfigPath()),
+      m_outputs(Hyprland::getMonitorsInfo()),
+      m_waybar_pid(initPid()) {
+    if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) != "Hyprland") {
+        Utils::log(Utils::CRIT, "This tool ONLY supports Hyprland.");
+        std::exit(EXIT_FAILURE);
+    }
+}
+
+Waybar::Waybar(BarMode mode, int threshold)
+    : Waybar(mode) {
+    m_bar_threshold = threshold;
 }
 
 // returns the default config file if found
-auto Waybar::getFallBackConfig() -> fs::path {
+auto Waybar::initFallBackConfig() -> fs::path {
     for (auto path : g_possible_config_lookup) {
         if (fs::exists(path) || 
             fs::exists(path.replace_extension(fs::path{".jsonc"})))
@@ -84,33 +100,25 @@ auto Waybar::getFallBackConfig() -> fs::path {
     return {};
 }
 
-auto Waybar::run(BarMode mode) -> void {
-    if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "Hyprland") {
-        if (mode == BarMode::HIDE_FOCUSED) {
-            m_outputs = Hyprland::getMonitorsInfo();
-            m_config_path = getConfigPath();
-
-            if (m_config_path.empty()) {
-                m_config_path = getFallBackConfig();
-                if (m_config_path.empty())
-                    throw std::runtime_error("Unable to find Waybar config.\n");
-            }
-
-            Utils::log(Utils::INFO, "Waybar config file found in '{}'\n", m_config_path.string());
-            Utils::log(Utils::INFO, "Launching Hide Focused Mode\n");
-
-            hideFocused();
+auto Waybar::run() -> void {
+    if (m_original_mode == BarMode::HIDE_FOCUSED) {
+        if (m_config_path.empty()) {
+            m_config_path = initFallBackConfig();
+            if (m_config_path.empty())
+                throw std::runtime_error("Unable to find Waybar config.\n");
         }
-        else if (mode == BarMode::HIDE_ALL) {
-            hideAllMonitors();
-        }
+
+        Utils::log(Utils::INFO, "Waybar config file found in '{}'\n", m_config_path.string());
+        Utils::log(Utils::INFO, "Launching Hide Focused Mode\n");
+
+        hideFocused();
     }
-    else {
-        Utils::log(Utils::CRIT, "This tool ONLY supports Hyprland.");
+    else if (m_original_mode == BarMode::HIDE_ALL) {
+        hideAllMonitors();
     }
 }
 
-auto Waybar::getConfigPath() -> fs::path {
+auto Waybar::initConfigPath() -> fs::path {
     auto str_cmd = Utils::getProcArgs(m_waybar_pid);
 
     auto find = str_cmd.find("-c");
@@ -285,9 +293,8 @@ auto Waybar::hideFocused() -> void {
         o_file.close();
         reload();
     }
-    // unhandled case
     else {
-        Utils::log(Utils::WARN, "This feature requieres a minimum of 2 monitors.\n");
-        return;
+        Utils::log(Utils::WARN, "The number of monitors is {}. Fall back to `mode` ALL\n", m_outputs.size());
+        hideAllMonitors();
     }
 }
