@@ -38,7 +38,7 @@ or you can install it to your path by doing:
 xmake install --admin
 ```
 ### Sample bind config for waybar & autowaybar in hyprland.conf
-```
+```bash
 # waybar start OR restart 
 bind=$mainMod, W, exec, if ! pgrep waybar; then waybar & else killall -SIGUSR2 waybar & fi
 #autohide with autowaybar
