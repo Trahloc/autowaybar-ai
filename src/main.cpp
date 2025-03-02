@@ -1,27 +1,59 @@
 #include "utils.hpp"
 #include "waybar.hpp"
-#include <cstdlib>
 #include <getopt.h>
 
 auto printHelp() -> void {
-    static const std::string help {
-        "Usage: \n" 
-        "autowaybar -m | --mode <MODE>\n" 
-        "   MODE: all, focused\n" 
-        "       - all: Will hide all monitors, when the mouse reaches the top of the screen, both will be shown and when\n"
-        "              you go down the `threshold`, they will be hidden again.\n"
-        "       - focused: Will always hide the focused monitor and show the rest.\n"
-        "              When the mouse reaches the top, it will show the current monitor,\n"
-        "              same as `all` mode. (If only 1 monitor is active, it will fallback\n"
-        "              to `all` mode.)\n"
-        "autowaybar -h | --help\n" 
-        "   Prints this help\n"
-        "autowaybar -t | --threshold <px> \n"
-        "   Changes the amount of pixels of height autowaybar will keep showing the bar.\n"
-        "   Set it to a higher number if your bar is more thick\n"
-        "   (Default: 50px) \n"
+    using namespace fmt;
+
+    struct Flag {
+        std::string_view name;
+        std::string_view description;
     };
-    Utils::log(Utils::INFO, help); 
+
+    print(fg(color::yellow) | emphasis::bold, "autowaybar: \n");
+    print(fg(color::cyan), "Program to manage visibility modes for waybar in Hyprland\n\n");
+    print(fg(color::yellow) | emphasis::bold, "Usage:\n");
+
+    print(fg(color::cyan), "  autowaybar ");
+    print(fg(color::magenta) | emphasis::bold, "-m");
+    print(fg(color::cyan), "/");
+    print(fg(color::magenta) | emphasis::bold, "--mode ");
+    print(fg(color::white), "<Mode> \n");
+
+    constexpr std::array<Flag, 3> flags = {{
+        {.name = "-m --mode", .description = "Select the operation mode for waybar."},
+        {.name = "-t --threshold", .description = "Threshold in pixels that should match your waybar width"},
+        {.name = "-h --help", .description = "Show this help"}
+    }};
+
+    size_t maxFlagLength = 0;
+    for (const auto& flag : flags) maxFlagLength = std::max(maxFlagLength, flag.name.length());
+
+    print(fg(color::yellow) | emphasis::bold, "Flags:\n");
+    for (const auto& flag : flags) {
+        print(fg(color::magenta) | emphasis::bold, "  {:<{}}", flag.name, maxFlagLength + 2);
+        print("  {}\n", flag.description);
+    }
+
+    // examples
+    print("\n");
+    print(fg(color::yellow) | emphasis::bold, "Examples:\n");
+    print(fg(color::cyan), "  autowaybar -m focused\n");
+    print(fg(color::cyan), "  autowaybar -m all\n");
+    //print(fg(color::cyan), "  autowaybar -m mon:<monitorname>\n");
+    print(fg(color::cyan), "  autowaybar -m focused -t 100\n");
+    print(fg(color::cyan), "  autowaybar -m all -t 100\n");
+
+    // Detailed mode descriptions
+    print(fg(color::yellow) | emphasis::bold, "\nMode:\n");
+    print(fg(color::cyan), "  focused: ");
+    print(emphasis::italic, "Hide the focused monitor and show the rest. When the mouse reaches the top,\n"
+    "  it will show the current monitor, same as `all` mode. (If only 1 monitor is active, it will fallback to `all` mode.)\n\n");
+    print(fg(color::cyan), "  all: ");
+    print(emphasis::italic, "Hide all monitors, when the mouse reaches the top of the screen, \n"
+    "  both will be shown and when you go down the `threshold`, they will be hidden again.\n\n");
+    //print(fg(color::cyan), "  mon:<monitorname>: ");
+    //print(emphasis::italic, "Hide the bar only on the specified monitor.\n\n");
 }
 
 auto main(int argc, char *argv[]) -> int {
@@ -70,7 +102,7 @@ auto main(int argc, char *argv[]) -> int {
 
     // Init waybar
     Waybar bar = (threshold != -1) ?
-            Waybar( auxMode, threshold) :
+            Waybar(auxMode, threshold) :
             Waybar(auxMode);
     bar.run();
     

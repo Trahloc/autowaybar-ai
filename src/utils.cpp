@@ -5,6 +5,10 @@
 #include <string>
 #include <unistd.h>
 
+/*
+    @param pid : the pid of the process to get its arguments
+    @returns : a string containing the arguments
+*/
 auto Utils::getProcArgs(const pid_t pid) -> std::string {
     std::string pid_s = std::to_string(pid);
     std::ifstream proc_args("/proc/" + pid_s + "/cmdline");
@@ -17,6 +21,10 @@ auto Utils::getProcArgs(const pid_t pid) -> std::string {
         throw std::runtime_error("Invalid PID: " + pid_s);
 }
 
+/*
+    @param file : ofstream who is using the file
+    @param filepath : the path where the file is located
+*/
 auto Utils::truncateFile(std::ofstream& file, const fs::path& filepath) -> void {
     file.close();
     file.open(filepath, std::iostream::trunc);
@@ -24,6 +32,10 @@ auto Utils::truncateFile(std::ofstream& file, const fs::path& filepath) -> void 
         throw std::runtime_error("[ERR] Couldn't open the file.\n");
 }
 
+/*
+    @param command : string containing the program to be executed
+    @returns : a string containing the stdout from the executed program
+*/
 auto Utils::execCommand(const std::string& command) -> std::string {
     FILE* pipe = popen(command.c_str(), "r");
 

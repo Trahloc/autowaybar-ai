@@ -27,11 +27,11 @@ struct monitor_info_t {
     int x_coord{}, width{};
     bool hidden = false;
 
-    bool operator<(monitor_info_t& other) {
-        return this->x_coord < other.x_coord;
+    bool operator<(const monitor_info_t& other) const {
+        return x_coord < other.x_coord;
     }
 
-    bool operator==(monitor_info_t& other) {
+    bool operator==(const monitor_info_t& other) const {
         return name == other.name && x_coord == other.x_coord;
     }
 };
@@ -48,14 +48,15 @@ class Waybar {
         Waybar(BarMode mode, int threshold);
 
         auto run() -> void; // calls the apropiate operation mode
-        auto reload() -> void; // sigusr2
-        auto setBarMode(BarMode mode);
+        auto reload() const -> void; // sigusr2
+        auto setBarMode(BarMode mode); // setter for mode
     private:
-        auto hideAllMonitors() -> void;
-        auto hideFocused() -> void;
-        auto initConfigPath() -> fs::path;
-        auto initFallBackConfig() -> fs::path;
-        auto initPid() -> pid_t;
+        auto hideAllMonitors() const -> void;
+        auto hideFocused() -> void;                  
+        auto initConfigPath() const -> fs::path;     // retrieves original config filepath
+        auto initFallBackConfig() const -> fs::path; // retrieves a fallback config filepath
+        auto initPid() const -> pid_t;               // retreives pid of waybar
+        auto getVisibleMonitors() const -> Json::Value; // retrieves current monitor
 
         static void handleSignal(int signal) {
             if (signal == SIGINT || signal == SIGTERM || signal == SIGHUP) {

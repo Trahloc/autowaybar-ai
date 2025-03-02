@@ -64,7 +64,7 @@ namespace Hyprland {
 
 } // namespace Hyprland
 
-auto Waybar::initPid() -> pid_t {
+auto Waybar::initPid() const -> pid_t {
     try {
         return std::stoi(Utils::execCommand("pidof waybar"));
     } catch(std::exception& e) {
@@ -91,7 +91,7 @@ Waybar::Waybar(BarMode mode, int threshold)
 }
 
 // returns the default config file if found
-auto Waybar::initFallBackConfig() -> fs::path {
+auto Waybar::initFallBackConfig() const  -> fs::path {
     for (auto path : g_possible_config_lookup) {
         if (fs::exists(path) || 
             fs::exists(path.replace_extension(fs::path{".jsonc"})))
@@ -118,7 +118,7 @@ auto Waybar::run() -> void {
     }
 }
 
-auto Waybar::initConfigPath() -> fs::path {
+auto Waybar::initConfigPath() const  -> fs::path {
     auto str_cmd = Utils::getProcArgs(m_waybar_pid);
 
     auto find = str_cmd.find("-c");
@@ -142,7 +142,7 @@ auto Waybar::initConfigPath() -> fs::path {
     return {};
 }
 
-auto Waybar::hideAllMonitors() -> void {
+auto Waybar::hideAllMonitors() const -> void {
     bool open = false;
 
     kill(m_waybar_pid, SIGUSR1);
@@ -166,7 +166,7 @@ auto Waybar::hideAllMonitors() -> void {
             auto temp = Hyprland::getCursorPos();
 
             // keep it open
-            while (temp.second < m_bar_threshold) {
+            while (temp.second < m_bar_threshold && !g_interruptRequest) {
                 std::this_thread::sleep_for(80ms);
                 temp = Hyprland::getCursorPos();
             }
@@ -186,7 +186,7 @@ auto Waybar::hideAllMonitors() -> void {
     reload();
 }
 
-auto Waybar::reload() -> void {
+auto Waybar::reload() const -> void {
     Utils::log(Utils::INFO, "Reloading PID: {}\n", m_waybar_pid);
     kill(m_waybar_pid, SIGUSR2);
 }
@@ -195,12 +195,17 @@ auto Waybar::hideFocused() -> void {
     // read initial config
     std::ifstream file(m_config_path);
 
-    if (!file) {
-        throw std::runtime_error("[CRIT] Couldn't open config file.\n");
-    }
-
+    if (!file) throw std::runtime_error("[CRIT] Couldn't open config file.\n");
+    
     Json::Value config;
-    file >> config;
+    try { 
+        file >> config; 
+    } 
+    catch (std::exception e) { 
+        Utils::log(Utils::CRIT, "Invalid waybar json file at {}", m_config_path.string()); 
+        file.close();
+        std::exit(EXIT_FAILURE);
+    }
     file.close();
 
     if (config.isArray()) {
@@ -224,77 +229,92 @@ auto Waybar::hideFocused() -> void {
     std::signal(SIGTERM, handleSignal);
     std::signal(SIGHUP, handleSignal);
 
-    // easiest start: only if we have more than 1 monitor
-    if (m_outputs.size() > 1) {
-        // create an overwriteable ofstream
-        std::ofstream o_file(m_config_path);
-
-        // sort monitors ASCENDING based on x starting position
-        std::sort(m_outputs.begin(), m_outputs.end() );
-        auto [x, y] = Hyprland::getCursorPos();
-
-        while (!g_interruptRequest) {
-            Json::Value temp = Json::arrayValue;
-            bool need_reload = false; // this is false, until otherwise
-            std::string hidden_name;
-
-            for (auto& mon : m_outputs) {
-                if (mon.x_coord + mon.width < x && mon.hidden){
-                    // if left hidden -> show
-                    Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
-                    mon.hidden = false;
-                    need_reload = true;
-                }
-                else if (mon.x_coord < x && mon.x_coord + mon.width > x && !mon.hidden) {
-                    // if current monitor shown -> hide it
-                    Utils::log(Utils::INFO, "Mon: {} needs to be hidden.\n", mon.name);
-                    mon.hidden = true;
-                    hidden_name = mon.name;
-                    need_reload = true;
-                    break;
-                }
-                else if (mon.x_coord > x && mon.hidden) {
-                    // if right hidden -> show
-                    Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
-                    mon.hidden = false;
-                    need_reload = true;
-                }
-
-            }
-
-            // add the rest to show them
-            for (const auto& mon: m_outputs) {
-                if (!mon.hidden && mon.name != hidden_name) {
-                    temp.append(mon.name);
-                }
-            }
-
-            // only update in something changed
-            if (need_reload && !temp.isNull()) {
-                Utils::log(Utils::LOG, "Updating\n");
-                config["output"] = temp;
-                Utils::log(Utils::LOG, "New update: {}", fmt::streamed(config["output"]));
-                Utils::truncateFile(o_file, m_config_path); // We delete all the file
-                o_file << config;
-                o_file.close();
-                reload();
-            }
-
-            // wait and update mouse
-            std::this_thread::sleep_for(80ms);
-            std::tie(x,y) = Hyprland::getCursorPos();
-            Utils::log(Utils::INFO, "Mouse ({},{})\n", x,y);
-        }
-
-        // restore original config
-        config["output"] = initial_outputs;
-        Utils::truncateFile(o_file, m_config_path);
-        o_file << config;
-        o_file.close();
-        reload();
-    }
-    else {
+    // fall back option when only 1 monitor
+    if (m_outputs.size() <= 1) {
         Utils::log(Utils::WARN, "The number of monitors is {}. Fall back to `mode` ALL\n", m_outputs.size());
         hideAllMonitors();
     }
+
+    // create an overwriteable ofstream
+    std::ofstream o_file(m_config_path);
+
+    // sort monitors ASCENDING based on x starting position
+    std::sort(m_outputs.begin(), m_outputs.end() );
+    auto [mouse_x, mouse_y] = Hyprland::getCursorPos();
+
+    // main loop
+    while (!g_interruptRequest) {
+        bool need_reload {false}; // this is false, until otherwise
+
+        for (auto& mon : m_outputs) {
+            const bool in_current_mon = mon.x_coord < mouse_x && mon.x_coord + mon.width > mouse_x;
+
+            // if current monitor shown
+            if (in_current_mon && !mon.hidden) {
+                // outside of the threshold -> hide it 
+                if (mouse_y > m_bar_threshold) {
+                    Utils::log(Utils::INFO, "Mon: {} needs to be hidden.\n", mon.name);
+                    mon.hidden = true;
+                    need_reload = true;
+                } 
+                // inside the threshold -> keep showing
+                else if (mouse_y <= m_bar_threshold) {
+                    while (!g_interruptRequest && mouse_y <= m_bar_threshold) {
+                        std::this_thread::sleep_for(80ms);
+                        std::tie(mouse_x, mouse_y) = Hyprland::getCursorPos();
+                    }
+                    // we scaped the threshold -> hide it 
+                    Utils::log(Utils::INFO, "Mon: {} needs to be hidden.\n", mon.name);
+                    mon.hidden = true;
+                    need_reload = true;
+                }
+            } 
+            // if we touch top -> show it 
+            else if (in_current_mon && mon.hidden && mouse_y < 5) {
+                Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
+                mon.hidden = false;
+                need_reload = true;
+            }
+
+            // if left/right hidden -> show it
+            else if ((mon.x_coord + mon.width < mouse_x || mon.x_coord > mouse_x) && mon.hidden) {
+                Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
+                mon.hidden = false;
+                need_reload = true;
+            }
+        }
+
+        // only update in something changed
+        if (need_reload) {
+            Utils::log(Utils::LOG, "Updating\n");
+            config["output"] = getVisibleMonitors();
+            Utils::log(Utils::LOG, "New update: {}", fmt::streamed(config["output"]));
+            Utils::truncateFile(o_file, m_config_path); // We delete all the file
+            o_file << config;
+            o_file.close();
+            reload();
+        }
+
+        // wait and update mouse
+        std::this_thread::sleep_for(80ms);
+        std::tie(mouse_x, mouse_y) = Hyprland::getCursorPos();
+        Utils::log(Utils::INFO, "Mouse ({},{})\n", mouse_x, mouse_y);
+    }
+
+    // restore original config
+    config["output"] = initial_outputs;
+    Utils::truncateFile(o_file, m_config_path);
+    o_file << config;
+    o_file.close();
+    reload();
+}
+
+inline auto Waybar::getVisibleMonitors() const -> Json::Value {
+    Json::Value arr(Json::arrayValue);
+    for (const auto& mon : m_outputs) {
+        if (!mon.hidden) {
+            arr.append(mon.name);
+        }
+    }
+    return arr;
 }
