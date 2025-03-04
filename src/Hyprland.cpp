@@ -41,9 +41,9 @@ namespace Hyprland {
                 temp.x_coord = data[i]["x"].asInt();
             }
 
-            int scale = 1;
+            float scale = 1.0f;
             if (!data[i]["scale"].empty()) {
-               scale = data[i]["scale"].asInt();
+               scale = data[i]["scale"].asFloat();
             }
 
             // calculate width taking into account scaling factor
