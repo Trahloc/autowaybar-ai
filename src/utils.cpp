@@ -36,8 +36,8 @@ auto Utils::truncateFile(std::ofstream& file, const fs::path& filepath) -> void 
     @param command : string containing the program to be executed
     @returns : a string containing the stdout from the executed program
 */
-auto Utils::execCommand(const std::string& command) -> std::string {
-    FILE* pipe = popen(command.c_str(), "r");
+auto Utils::execCommand(const std::string_view command) -> std::string {
+    FILE* pipe = popen(command.data(), "r");
 
     if (!pipe) {
         Utils::log(Utils::ERR, "Failed to execute command: {}", command);

@@ -25,7 +25,7 @@ namespace Utils {
     };
 
     auto getProcArgs(const pid_t pid) -> std::string;
-    auto execCommand(const std::string& command) -> std::string;
+    auto execCommand(const std::string_view command) -> std::string;
     auto truncateFile(std::ofstream& file, const fs::path& filepath) -> void;
 
     template <typename... Args>

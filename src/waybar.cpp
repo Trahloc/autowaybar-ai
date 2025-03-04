@@ -8,61 +8,7 @@
 #include <stdexcept>
 #include <thread>
 #include "utils.hpp"
-#include "waybar.hpp"
-
-// Exclusive for Hyprland, wont work with other WM
-namespace Hyprland {
-
-    // returns cursor x and y coords
-    auto getCursorPos() -> std::pair<int, int> {
-        const std::string cmd = "hyprctl cursorpos";
-        std::istringstream stream(Utils::execCommand(cmd));
-
-        int xpos, ypos;
-        char basurilla;
-        if (stream >> xpos >> basurilla >> ypos)
-            return std::pair<int, int>{xpos, ypos};
-
-        return std::pair<int, int>{-1, -1};
-    }
-
-    // returns a vector with the monitor information provided by Hyprland
-    auto getMonitorsInfo() -> std::vector<monitor_info_t> {
-        const std::string cmd = "hyprctl monitors all -j";
-        std::istringstream stream(Utils::execCommand(cmd));
-
-        Json::Value data;
-        stream >> data;
-
-        std::vector<monitor_info_t> monitors;
-        monitors.reserve(2);
-
-        // fetch all monitors info
-        for (int i = 0; i < data.size(); ++i) {
-            monitor_info_t temp;
-
-            // names
-            if (!data[i]["name"].empty()) {
-                temp.name = data[i]["name"].asString();
-            }
-
-            // x coord
-            if (!data[i]["x"].empty()) {
-                temp.x_coord = data[i]["x"].asInt();
-            }
-
-            if (!data[i]["width"].empty()) {
-                temp.width = data[i]["width"].asInt();
-            }
-
-            Utils::log(Utils::LogLevel::LOG, "Monitor named {} found in x: {}, width: {}. \n", temp.name, temp.x_coord, temp.width);
-            monitors.push_back(temp);
-        }
-
-        return monitors;
-    }
-
-} // namespace Hyprland
+#include "Hyprland.hpp"
 
 auto Waybar::initPid() const -> pid_t {
     try {
@@ -275,7 +221,6 @@ auto Waybar::hideFocused() -> void {
                 mon.hidden = false;
                 need_reload = true;
             }
-
             // if left/right hidden -> show it
             else if ((mon.x_coord + mon.width < mouse_x || mon.x_coord > mouse_x) && mon.hidden) {
                 Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
