@@ -154,6 +154,10 @@ auto Waybar::hideFocused() -> void {
     }
     file.close();
 
+    // back up config
+    Utils::log(Utils::LOG, "Backuping original config.\n");
+    const Json::Value backup_config = config; 
+
     if (config.isArray()) {
         Utils::log(Utils::CRIT, "Multiple bars are not supported.\n");
         std::exit(EXIT_FAILURE);
@@ -161,15 +165,12 @@ auto Waybar::hideFocused() -> void {
 
     // filling output with all monitors in case some are missing
     if (!config["output"].isNull() && config["output"].size() < m_outputs.size()) {
-        Utils::log(Utils::INFO, "Some monitors are not in the Waybar config, adding all of them. \n");
+        Utils::log(Utils::LOG, "Some monitors are not in the Waybar config, adding all of them. \n");
         Json::Value val;
         for (const auto& mon : m_outputs)
             val.append(mon.name);
         config["output"] = val;
     }
-
-    // store output with all monitors in case of exiting
-    const Json::Value initial_outputs = config["output"];
 
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
@@ -247,9 +248,9 @@ auto Waybar::hideFocused() -> void {
     }
 
     // restore original config
-    config["output"] = initial_outputs;
     Utils::truncateFile(o_file, m_config_path);
-    o_file << config;
+    Utils::log(Utils::LOG, "Restoring original config.\n");
+    o_file << backup_config;
     o_file.close();
     reload();
 }
