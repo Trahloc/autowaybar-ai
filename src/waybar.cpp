@@ -104,8 +104,8 @@ auto Waybar::hideAllMonitors() const -> void {
         auto [root_x, root_y] = Hyprland::getCursorPos();
 
 	    // show mouse position only if it runs in terminal -> eg. stop trashing all the log files
-	    if (isConsole)
-        	Utils::log(Utils::LOG, "Mouse at position ({},{})\n", root_x, root_y);
+        if (isConsole)
+            Utils::log(Utils::LOG, "Mouse at position ({},{})\n", root_x, root_y);
 
         // show waybar
         if (!open && root_y < 5) {
@@ -249,8 +249,8 @@ auto Waybar::hideFocused() -> void {
         // wait and update mouse
         std::this_thread::sleep_for(80ms);
         std::tie(mouse_x, mouse_y) = Hyprland::getCursorPos();
-	    if (isConsole) 
-	        Utils::log(Utils::INFO, "Mouse at position ({},{})\n", mouse_x, mouse_y);
+        if (isConsole) 
+            Utils::log(Utils::INFO, "Mouse at position ({},{})\n", mouse_x, mouse_y);
     }
 
     // restore original config
