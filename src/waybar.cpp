@@ -104,9 +104,8 @@ auto Waybar::hideAllMonitors() const -> void {
         auto [root_x, root_y] = Hyprland::getCursorPos();
 
 	// show mouse position only if it runs in terminal -> eg. stop trashing all the log files
-	if (isConsole) {
+	if (isConsole)
         	Utils::log(Utils::LOG, "Mouse at position ({},{})\n", root_x, root_y);
-	}
         // show waybar
         if (!open && root_y < 5) {
             Utils::log(Utils::INFO, "Opening it. \n");
