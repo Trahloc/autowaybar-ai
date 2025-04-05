@@ -1,25 +1,15 @@
 #include <array>
 #include <csignal>
-#include <filesystem>
-#include <json/json.h>
-#include <json/value.h>
+#include <memory>
+#include "config.hpp"
 #include <signal.h>
 #include "utils.hpp"
 #include <vector>
 
 using namespace std::chrono_literals;
-namespace fs = std::filesystem;
 
 // globals and constants
 static bool g_interruptRequest = false;
-
-const fs::path g_HOMEDIR = std::string(std::getenv("HOME"));
-
-const std::array<fs::path, 3> g_possible_config_lookup = {
-    g_HOMEDIR / ".config/waybar/config",
-    g_HOMEDIR / "waybar/config",
-    "etc/xdg/waybar/config"
-};
 
 // TYPES
 struct monitor_info_t {
@@ -39,18 +29,18 @@ struct monitor_info_t {
 enum class BarMode : std::uint8_t {
     HIDE_ALL,
     HIDE_FOCUSED,
+    HIDE_MON,
     NONE
 };
 
 class Waybar {
     public:
-        Waybar(BarMode mode);
-        Waybar(BarMode mode, int threshold);
-
+        Waybar(std::string mode, int threshold);
         auto run() -> void; // calls the apropiate operation mode
         auto reload() const -> void; // sigusr2
         auto setBarMode(BarMode mode); // setter for mode
     private:
+        auto parseMode(std::string mode) -> BarMode;
         auto hideAllMonitors() const -> void;
         auto hideFocused() -> void;                  
         auto initConfigPath() const -> fs::path;     // retrieves original config filepath
@@ -68,6 +58,62 @@ class Waybar {
         pid_t m_waybar_pid;
         BarMode m_original_mode = BarMode::NONE;
         int m_bar_threshold = 50;
-        fs::path m_config_path{};
+        bool m_is_console;
+        std::string m_hidemon{}; // for mode BarMode::HIDE_MON
         std::vector<monitor_info_t> m_outputs{};
+        std::unique_ptr<config> m_config;
 };
+
+static auto printHelp() -> void {
+    using namespace fmt;
+
+    struct Flag {
+        std::string_view name;
+        std::string_view description;
+    };
+
+    print(fg(color::yellow) | emphasis::bold, "autowaybar: \n");
+    print(fg(color::cyan), "Program to manage visibility modes for waybar in Hyprland\n\n");
+    print(fg(color::yellow) | emphasis::bold, "Usage:\n");
+
+    print(fg(color::cyan), "  autowaybar ");
+    print(fg(color::magenta) | emphasis::bold, "-m");
+    print(fg(color::cyan), "/");
+    print(fg(color::magenta) | emphasis::bold, "--mode ");
+    print(fg(color::white), "<Mode> \n");
+
+    constexpr std::array<Flag, 3> flags = {{
+        {.name = "-m --mode", .description = "Select the operation mode for waybar."},
+        {.name = "-t --threshold", .description = "Threshold in pixels that should match your waybar width"},
+        {.name = "-h --help", .description = "Show this help"}
+    }};
+
+    size_t maxFlagLength = 0;
+    for (const auto& flag : flags) maxFlagLength = std::max(maxFlagLength, flag.name.length());
+
+    print(fg(color::yellow) | emphasis::bold, "Flags:\n");
+    for (const auto& flag : flags) {
+        print(fg(color::magenta) | emphasis::bold, "  {:<{}}", flag.name, maxFlagLength + 2);
+        print("  {}\n", flag.description);
+    }
+
+    // examples
+    print("\n");
+    print(fg(color::yellow) | emphasis::bold, "Examples:\n");
+    print(fg(color::cyan), "  autowaybar -m focused\n");
+    print(fg(color::cyan), "  autowaybar -m all\n");
+    print(fg(color::cyan), "  autowaybar -m mon:DP-2\n");
+    print(fg(color::cyan), "  autowaybar -m focused -t 100\n");
+    print(fg(color::cyan), "  autowaybar -m all -t 100\n");
+
+    // Detailed mode descriptions
+    print(fg(color::yellow) | emphasis::bold, "\nMode:\n");
+    print(fg(color::cyan), "  focused: ");
+    print(emphasis::italic, "Hide the focused monitor and show the rest. When the mouse reaches the top,\n"
+    "  it will show the current monitor, same as `all` mode. (If only 1 monitor is active, it will fallback to `all` mode.)\n\n");
+    print(fg(color::cyan), "  all: ");
+    print(emphasis::italic, "Hide all monitors, when the mouse reaches the top of the screen, \n"
+    "  both will be shown and when you go down the `threshold`, they will be hidden again.\n\n");
+    print(fg(color::cyan), "  mon:<monitorname>: ");
+    print(emphasis::italic, "Hide the bar only on the specified monitor.\n\n");
+}

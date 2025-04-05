@@ -1,14 +1,5 @@
 {
     "tasks": [
-        {   
-            "type": "process",
-            "label": "Run",
-            "command" : "${workspaceFolder}/build/linux/x86_64/debug/autowaybar",
-            "args": [
-                "-m",
-                "unfocused"
-            ]
-        },
         {
             "type" : "shell",
             "label": "Set Debug Mode",
@@ -32,7 +23,7 @@
         },
         {
             "label" : "Xmake Debug Proyect",
-            "dependsOn" : [ "Set Debug Mode", "Compile"]
+            "dependsOn" : [ "Set Debug Mode", "Compile" ]
         }
        
     ],

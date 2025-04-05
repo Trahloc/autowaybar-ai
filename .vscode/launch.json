@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/linux/x86_64/debug/autowaybar",
             "args": [
-                "-m", "focused"
+                "-m", "mon:LOL"
             ],
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",

@@ -21,16 +21,6 @@ auto Utils::getProcArgs(const pid_t pid) -> std::string {
         throw std::runtime_error("Invalid PID: " + pid_s);
 }
 
-/*
-    @param file : ofstream who is using the file
-    @param filepath : the path where the file is located
-*/
-auto Utils::truncateFile(std::ofstream& file, const fs::path& filepath) -> void {
-    file.close();
-    file.open(filepath, std::iostream::trunc);
-    if (!file.is_open())
-        throw std::runtime_error("[ERR] Couldn't open the file.\n");
-}
 
 /*
     @param command : string containing the program to be executed

@@ -1,13 +1,11 @@
 #include <algorithm>
+#include <cassert>
 #include <csignal>
 #include <cstdlib>
 #include <exception>
-#include <filesystem>
-#include <fstream>
 #include <json/value.h>
 #include <stdexcept>
 #include <thread>
-//#include <io.h>
 #include "utils.hpp"
 #include "Hyprland.hpp"
 
@@ -20,79 +18,85 @@ auto Waybar::initPid() const -> pid_t {
     }
 }
 
+// Parse mode argument
+auto Waybar::parseMode(std::string mode) -> BarMode {
+    BarMode res = BarMode::NONE;
+    
+    if (mode.empty()) {
+        Utils::log(Utils::CRIT, "-m / --mode is mandatory.\n");
+        printHelp();
+        std::exit(EXIT_FAILURE);
+    }
 
-Waybar::Waybar(BarMode mode)
-    : m_original_mode(mode),
-      m_config_path(initConfigPath()),
-      m_outputs(Hyprland::getMonitorsInfo()),
-      m_waybar_pid(initPid()) {
+    if (mode == "all") 
+        res = BarMode::HIDE_ALL;
+    else if (mode == "focused") 
+        res = BarMode::HIDE_FOCUSED;
+    else if (mode.length() > 4 && mode.substr(0, 4) == "mon:") {
+        m_hidemon = mode.substr(4); 
+        res = BarMode::HIDE_MON;
+    }
+    else {
+        Utils::log(Utils::CRIT, "Invalid mode value: {}\n", mode);
+        printHelp();
+        std::exit(EXIT_FAILURE);
+    }
+    return res;
+}
+
+
+Waybar::Waybar(std::string mode, int threshold)
+    : m_waybar_pid(initPid()),
+      m_is_console(isatty(fileno(stdin))),
+      m_bar_threshold(threshold) {
     if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) != "Hyprland") {
         Utils::log(Utils::CRIT, "This tool ONLY supports Hyprland.");
         std::exit(EXIT_FAILURE);
     }
-}
-
-Waybar::Waybar(BarMode mode, int threshold)
-    : Waybar(mode) {
-    m_bar_threshold = threshold;
-}
-
-// returns the default config file if found
-auto Waybar::initFallBackConfig() const  -> fs::path {
-    for (auto path : g_possible_config_lookup) {
-        if (fs::exists(path) || 
-            fs::exists(path.replace_extension(fs::path{".jsonc"})))
-            return path;
-    }
-    return {};
+    m_original_mode = parseMode(mode);
+    m_outputs = Hyprland::getMonitorsInfo();
+    m_config = std::make_unique<config>(m_waybar_pid);
 }
 
 auto Waybar::run() -> void {
-    if (m_original_mode == BarMode::HIDE_FOCUSED) {
-        if (m_config_path.empty()) {
-            m_config_path = initFallBackConfig();
-            if (m_config_path.empty())
-                throw std::runtime_error("Unable to find Waybar config.\n");
-        }
-
-        Utils::log(Utils::INFO, "Waybar config file found in '{}'\n", m_config_path.string());
+    switch (m_original_mode) {
+    case BarMode::HIDE_FOCUSED: 
+        m_config->init();
         Utils::log(Utils::INFO, "Launching Hide Focused Mode\n");
-
         hideFocused();
-    }
-    else if (m_original_mode == BarMode::HIDE_ALL) {
+        break;
+    
+    case BarMode::HIDE_ALL: 
         hideAllMonitors();
-    }
-}
+        break;
+        
+    case BarMode::HIDE_MON: {
+        // check if hide mon exist
+        bool exist = std::any_of(m_outputs.cbegin(), m_outputs.cend(), [this](monitor_info_t m) {
+            return m.name == m_hidemon;
+        });
 
-auto Waybar::initConfigPath() const  -> fs::path {
-    auto str_cmd = Utils::getProcArgs(m_waybar_pid);
-
-    auto find = str_cmd.find("-c");
-    if (find != std::string::npos) {
-        str_cmd.erase(str_cmd.begin(), str_cmd.begin() + find + 2);
-        find = str_cmd.find("-s");
-
-        if (find != std::string::npos) {
-            str_cmd.erase(str_cmd.begin() + find, str_cmd.end());
-
-            // strip special characters
-            str_cmd.erase(
-                std::remove(str_cmd.begin(), str_cmd.end(), '\000'),
-                str_cmd.end()
-            );
-
-            return str_cmd;
+        if (!exist) {
+            Utils::log(Utils::CRIT, "Monitor '{}' provided, was not found.\n", m_hidemon);
+            Utils::log(Utils::NONE, "Consider using any of this: ");
+            for (const auto& m : m_outputs)
+                Utils::log(Utils::NONE, "{} ", m.name);
+            Utils::log(Utils::NONE, "\n");
+            std::exit(EXIT_FAILURE);
         }
-    }
 
-    return {};
+        // hiding logic
+        throw std::runtime_error("Unimplemented");
+        m_config->init();
+        break;
+    }
+    default:
+        Utils::log(Utils::CRIT, "Uknown mode.");
+    }
 }
 
 auto Waybar::hideAllMonitors() const -> void {
     bool open = false;
-    const bool isConsole = isatty(fileno(stdin));
-
     kill(m_waybar_pid, SIGUSR1);
 
     std::signal(SIGINT, handleSignal);
@@ -104,7 +108,7 @@ auto Waybar::hideAllMonitors() const -> void {
         auto [root_x, root_y] = Hyprland::getCursorPos();
 
 	    // show mouse position only if it runs in terminal -> eg. stop trashing all the log files
-        if (isConsole)
+        if (m_is_console)
             Utils::log(Utils::LOG, "Mouse at position ({},{})\n", root_x, root_y);
 
         // show waybar
@@ -143,7 +147,7 @@ auto Waybar::reload() const -> void {
 
 auto Waybar::hideFocused() -> void {
     // read initial config
-    std::ifstream file(m_config_path);
+    /* std::ifstream file(m_config_path);
     const bool isConsole = isatty(fileno(stdin));
 
     if (!file) throw std::runtime_error("[CRIT] Couldn't open config file.\n");
@@ -157,24 +161,25 @@ auto Waybar::hideFocused() -> void {
         file.close();
         std::exit(EXIT_FAILURE);
     }
-    file.close();
+    file.close(); */
 
     // back up config
-    Utils::log(Utils::LOG, "Backuping original config.\n");
-    const Json::Value backup_config = config; 
+    // Utils::log(Utils::LOG, "Backuping original config.\n");
+    // const Json::Value backup_config = config; 
 
-    if (config.isArray()) {
-        Utils::log(Utils::CRIT, "Multiple bars are not supported.\n");
-        std::exit(EXIT_FAILURE);
-    }
+    // if (config.isArray()) {
+    //     Utils::log(Utils::CRIT, "Multiple bars are not supported.\n");
+    //     std::exit(EXIT_FAILURE);
+    // }
 
     // filling output with all monitors in case some are missing
-    if (!config["output"].isNull() && config["output"].size() < m_outputs.size()) {
+    if (auto &o = m_config->getOutputs();
+        !o.isNull() && o.size() < m_outputs.size()) {
         Utils::log(Utils::LOG, "Some monitors are not in the Waybar config, adding all of them. \n");
         Json::Value val;
         for (const auto& mon : m_outputs)
             val.append(mon.name);
-        config["output"] = val;
+        m_config->setOutputs(val);
     }
 
     std::signal(SIGINT, handleSignal);
@@ -184,11 +189,13 @@ auto Waybar::hideFocused() -> void {
     // fall back option when only 1 monitor
     if (m_outputs.size() <= 1) {
         Utils::log(Utils::WARN, "The number of monitors is {}. Fall back to `mode` ALL\n", m_outputs.size());
+        m_config->restoreOriginal();
+        reload();
         hideAllMonitors();
     }
 
     // create an overwriteable ofstream
-    std::ofstream o_file(m_config_path);
+    // std::ofstream o_file(m_config_path);
 
     // sort monitors ASCENDING based on x starting position
     std::sort(m_outputs.begin(), m_outputs.end() );
@@ -238,27 +245,21 @@ auto Waybar::hideFocused() -> void {
         // only update in something changed
         if (need_reload) {
             Utils::log(Utils::LOG, "Updating\n");
-            config["output"] = getVisibleMonitors();
-            Utils::log(Utils::LOG, "New update: {}", fmt::streamed(config["output"]));
-            Utils::truncateFile(o_file, m_config_path); // We delete all the file
-            o_file << config;
-            o_file.close();
-            reload();
+            m_config->setOutputs(getVisibleMonitors());
+            Utils::log(Utils::LOG, "New update: {}", fmt::streamed(m_config->getOutputs()));
+            reload(); // always reload to apply changes
         }
 
         // wait and update mouse
         std::this_thread::sleep_for(80ms);
         std::tie(mouse_x, mouse_y) = Hyprland::getCursorPos();
-        if (isConsole) 
+        if (m_is_console) 
             Utils::log(Utils::INFO, "Mouse at position ({},{})\n", mouse_x, mouse_y);
     }
 
-    // restore original config
-    Utils::truncateFile(o_file, m_config_path);
     Utils::log(Utils::LOG, "Restoring original config.\n");
-    o_file << backup_config;
-    o_file.close();
-    reload();
+    m_config->restoreOriginal();
+    reload(); // apply
 }
 
 inline auto Waybar::getVisibleMonitors() const -> Json::Value {
