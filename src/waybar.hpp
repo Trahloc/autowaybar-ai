@@ -35,13 +35,13 @@ enum class BarMode : std::uint8_t {
 
 class Waybar {
     public:
-        Waybar(std::string mode, int threshold);
+        Waybar(std::string mode, int threshold, bool verbose);
         auto run() -> void; // calls the apropiate operation mode
         auto reload() const -> void; // sigusr2
         auto setBarMode(BarMode mode); // setter for mode
     private:
         auto parseMode(std::string mode) -> BarMode;
-        auto hideAllMonitors() const -> void;
+        auto hideAllMonitors(bool is_visible = true) const -> void;
         auto hideFocused() -> void;                  
         auto initConfigPath() const -> fs::path;     // retrieves original config filepath
         auto initFallBackConfig() const -> fs::path; // retrieves a fallback config filepath
@@ -59,6 +59,7 @@ class Waybar {
         BarMode m_original_mode = BarMode::NONE;
         int m_bar_threshold = 50;
         bool m_is_console;
+        bool m_is_verbose;
         std::string m_hidemon{}; // for mode BarMode::HIDE_MON
         std::vector<monitor_info_t> m_outputs{};
         std::unique_ptr<config> m_config;
@@ -82,10 +83,11 @@ static auto printHelp() -> void {
     print(fg(color::magenta) | emphasis::bold, "--mode ");
     print(fg(color::white), "<Mode> \n");
 
-    constexpr std::array<Flag, 3> flags = {{
+    constexpr std::array<Flag, 4> flags = {{
         {.name = "-m --mode", .description = "Select the operation mode for waybar."},
         {.name = "-t --threshold", .description = "Threshold in pixels that should match your waybar width"},
-        {.name = "-h --help", .description = "Show this help"}
+        {.name = "-h --help", .description = "Show this help"},
+        {.name = "-v --verbose", .description = "Enable verbose output"}
     }};
 
     size_t maxFlagLength = 0;
@@ -100,9 +102,9 @@ static auto printHelp() -> void {
     // examples
     print("\n");
     print(fg(color::yellow) | emphasis::bold, "Examples:\n");
-    print(fg(color::cyan), "  autowaybar -m focused\n");
+    print(fg(color::cyan), "  autowaybar -m focused -v\n");
     print(fg(color::cyan), "  autowaybar -m all\n");
-    print(fg(color::cyan), "  autowaybar -m mon:DP-2\n");
+    print(fg(color::cyan), "  autowaybar -m mon:DP-2 -v\n");
     print(fg(color::cyan), "  autowaybar -m focused -t 100\n");
     print(fg(color::cyan), "  autowaybar -m all -t 100\n");
 

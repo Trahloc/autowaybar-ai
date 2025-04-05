@@ -45,10 +45,11 @@ auto Waybar::parseMode(std::string mode) -> BarMode {
 }
 
 
-Waybar::Waybar(std::string mode, int threshold)
+Waybar::Waybar(std::string mode, int threshold, bool verbose)
     : m_waybar_pid(initPid()),
       m_is_console(isatty(fileno(stdin))),
-      m_bar_threshold(threshold) {
+      m_bar_threshold(threshold),
+      m_is_verbose(verbose) {
     if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) != "Hyprland") {
         Utils::log(Utils::CRIT, "This tool ONLY supports Hyprland.");
         std::exit(EXIT_FAILURE);
@@ -90,14 +91,16 @@ auto Waybar::run() -> void {
         m_config->init();
         break;
     }
-    default:
-        Utils::log(Utils::CRIT, "Uknown mode.");
+    case BarMode::NONE:
+        Utils::log(Utils::INFO, "Doing nothing\n");
     }
 }
 
-auto Waybar::hideAllMonitors() const -> void {
-    bool open = false;
-    kill(m_waybar_pid, SIGUSR1);
+auto Waybar::hideAllMonitors(bool is_visible) const -> void {
+    if (is_visible) {
+        kill(m_waybar_pid, SIGUSR1);
+        is_visible = false;
+    }
 
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
@@ -108,14 +111,14 @@ auto Waybar::hideAllMonitors() const -> void {
         auto [root_x, root_y] = Hyprland::getCursorPos();
 
 	    // show mouse position only if it runs in terminal -> eg. stop trashing all the log files
-        if (m_is_console)
+        if (m_is_console && m_is_verbose)
             Utils::log(Utils::LOG, "Mouse at position ({},{})\n", root_x, root_y);
 
         // show waybar
-        if (!open && root_y < 5) {
+        if (!is_visible && root_y < 5) {
             Utils::log(Utils::INFO, "Opening it. \n");
             kill(m_waybar_pid, SIGUSR1);
-            open = true;
+            is_visible= true;
 
             auto temp = Hyprland::getCursorPos();
 
@@ -127,10 +130,10 @@ auto Waybar::hideAllMonitors() const -> void {
 
         }
         // closing waybar
-        else if (open && root_y > m_bar_threshold) {
+        else if (is_visible && root_y > m_bar_threshold) {
             Utils::log(Utils::INFO, "Hiding it. \n");
             kill(m_waybar_pid, SIGUSR1);
-            open = false;
+            is_visible = false;
         }
 
         std::this_thread::sleep_for(80ms);
@@ -146,32 +149,6 @@ auto Waybar::reload() const -> void {
 }
 
 auto Waybar::hideFocused() -> void {
-    // read initial config
-    /* std::ifstream file(m_config_path);
-    const bool isConsole = isatty(fileno(stdin));
-
-    if (!file) throw std::runtime_error("[CRIT] Couldn't open config file.\n");
-    
-    Json::Value config;
-    try { 
-        file >> config; 
-    } 
-    catch (std::exception e) { 
-        Utils::log(Utils::CRIT, "Invalid waybar json file at {}", m_config_path.string()); 
-        file.close();
-        std::exit(EXIT_FAILURE);
-    }
-    file.close(); */
-
-    // back up config
-    // Utils::log(Utils::LOG, "Backuping original config.\n");
-    // const Json::Value backup_config = config; 
-
-    // if (config.isArray()) {
-    //     Utils::log(Utils::CRIT, "Multiple bars are not supported.\n");
-    //     std::exit(EXIT_FAILURE);
-    // }
-
     // filling output with all monitors in case some are missing
     if (auto &o = m_config->getOutputs();
         !o.isNull() && o.size() < m_outputs.size()) {
@@ -189,13 +166,8 @@ auto Waybar::hideFocused() -> void {
     // fall back option when only 1 monitor
     if (m_outputs.size() <= 1) {
         Utils::log(Utils::WARN, "The number of monitors is {}. Fall back to `mode` ALL\n", m_outputs.size());
-        m_config->restoreOriginal();
-        reload();
         hideAllMonitors();
     }
-
-    // create an overwriteable ofstream
-    // std::ofstream o_file(m_config_path);
 
     // sort monitors ASCENDING based on x starting position
     std::sort(m_outputs.begin(), m_outputs.end() );
@@ -253,7 +225,7 @@ auto Waybar::hideFocused() -> void {
         // wait and update mouse
         std::this_thread::sleep_for(80ms);
         std::tie(mouse_x, mouse_y) = Hyprland::getCursorPos();
-        if (m_is_console) 
+        if (m_is_console && m_is_verbose) 
             Utils::log(Utils::INFO, "Mouse at position ({},{})\n", mouse_x, mouse_y);
     }
 
@@ -265,9 +237,8 @@ auto Waybar::hideFocused() -> void {
 inline auto Waybar::getVisibleMonitors() const -> Json::Value {
     Json::Value arr(Json::arrayValue);
     for (const auto& mon : m_outputs) {
-        if (!mon.hidden) {
+        if (!mon.hidden)
             arr.append(mon.name);
-        }
     }
     return arr;
 }

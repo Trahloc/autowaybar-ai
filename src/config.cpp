@@ -17,7 +17,6 @@ auto config::init() -> void {
     std::ifstream file(m_config_path);
     if (!file) throw std::runtime_error("[CRIT] Couldn't open config file.\n");
 
-    Json::Value config;
     try {
         file >> m_config;
     } catch (std::exception e) {
@@ -28,9 +27,9 @@ auto config::init() -> void {
     file.close();
 
     Utils::log(Utils::LOG, "Backuping original config.\n");
-    m_backup = config; 
+    m_backup = m_config; 
   
-    if (config.isArray()) {
+    if (m_config.isArray()) {
         Utils::log(Utils::CRIT, "Multiple bars are not supported.\n");
         std::exit(EXIT_FAILURE);
     }
