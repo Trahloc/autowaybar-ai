@@ -40,12 +40,13 @@ class Waybar {
         auto reload() const -> void; // sigusr2
         auto setBarMode(BarMode mode); // setter for mode
     private:
-        auto parseMode(std::string mode) -> BarMode;
         auto hideAllMonitors(bool is_visible = true) const -> void;
         auto hideFocused() -> void;                  
+        auto hideCustom() -> void;
         auto initConfigPath() const -> fs::path;     // retrieves original config filepath
         auto initFallBackConfig() const -> fs::path; // retrieves a fallback config filepath
         auto initPid() const -> pid_t;               // retreives pid of waybar
+        auto parseMode(std::string mode) -> BarMode;
         auto getVisibleMonitors() const -> Json::Value; // retrieves current monitor
 
         static void handleSignal(int signal) {

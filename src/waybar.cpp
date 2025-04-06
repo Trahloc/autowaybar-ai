@@ -86,14 +86,19 @@ auto Waybar::run() -> void {
             std::exit(EXIT_FAILURE);
         }
 
-        // hiding logic
-        throw std::runtime_error("Unimplemented");
+        // TODO: hiding logic
+        throw std::runtime_error("Todo: unimplemented method mon:\n");
         m_config->init();
+        hideCustom();
         break;
     }
     case BarMode::NONE:
         Utils::log(Utils::INFO, "Doing nothing\n");
     }
+}
+
+auto Waybar::hideCustom() -> void {
+    
 }
 
 auto Waybar::hideAllMonitors(bool is_visible) const -> void {
