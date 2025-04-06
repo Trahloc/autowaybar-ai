@@ -18,11 +18,12 @@ jsoncpp
 ### Features
 - `autowaybar -m all`: Will hide waybar in all monitors until your mouse reaches the top of any of the screens.
 - `autowaybar -m focused`: Will hide waybar in the focused monitor only. 
+- `autowaybar -m mon:DP-2`: Will hide waybar in the DP-2 monitor only. 
 
 ### Build
 In order to build it:
 ```bash
-xmake
+xmake f -m release && xmake
 ```
 or manually:
 ```bash
