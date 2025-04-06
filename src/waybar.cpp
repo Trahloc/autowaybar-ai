@@ -100,6 +100,7 @@ auto Waybar::hideCustom() -> void {
     if (m_outputs.size() <= 1) {
         Utils::log(Utils::WARN, "The number of monitors is {}. Fall back to `mode` ALL\n", m_outputs.size());
         hideAllMonitors();
+        return;
     }
 
     // filling output with all monitors except the target
@@ -225,6 +226,13 @@ auto Waybar::reload() const -> void {
 }
 
 auto Waybar::hideFocused() -> void {
+    // fall back option when only 1 monitor
+    if (m_outputs.size() <= 1) {
+        Utils::log(Utils::WARN, "The number of monitors is {}. Fall back to `mode` ALL\n", m_outputs.size());
+        hideAllMonitors();
+        return;
+    }
+
     // filling output with all monitors in case some are missing
     if (auto &o = m_config->getOutputs();
         !o.isNull() && o.size() < m_outputs.size()) {
@@ -238,12 +246,6 @@ auto Waybar::hideFocused() -> void {
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
     std::signal(SIGHUP, handleSignal);
-
-    // fall back option when only 1 monitor
-    if (m_outputs.size() <= 1) {
-        Utils::log(Utils::WARN, "The number of monitors is {}. Fall back to `mode` ALL\n", m_outputs.size());
-        hideAllMonitors();
-    }
 
     // sort monitors ASCENDING based on x starting position
     std::sort(m_outputs.begin(), m_outputs.end() );
