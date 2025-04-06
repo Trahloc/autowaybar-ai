@@ -2,6 +2,7 @@
 #include <exception>
 #include <fstream>
 #include <sched.h>
+#include "utils.hpp"
 
 config::config(pid_t waybarpid) {
     m_waybar_pid = waybarpid;

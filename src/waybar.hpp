@@ -35,7 +35,7 @@ enum class BarMode : std::uint8_t {
 
 class Waybar {
     public:
-        Waybar(std::string mode, int threshold, bool verbose);
+        Waybar(const std::string &mode, int threshold, bool verbose);
         auto run() -> void; // calls the apropiate operation mode
         auto reload() const -> void; // sigusr2
         auto setBarMode(BarMode mode); // setter for mode
@@ -46,8 +46,9 @@ class Waybar {
         auto initConfigPath() const -> fs::path;     // retrieves original config filepath
         auto initFallBackConfig() const -> fs::path; // retrieves a fallback config filepath
         auto initPid() const -> pid_t;               // retreives pid of waybar
-        auto parseMode(std::string mode) -> BarMode;
+        auto parseMode(const std::string &mode) -> BarMode;
         auto getVisibleMonitors() const -> Json::Value; // retrieves current monitor
+        auto getMonitor(const std::string &name) -> monitor_info_t&; // retrieves the monitor info by a name
 
         static void handleSignal(int signal) {
             if (signal == SIGINT || signal == SIGTERM || signal == SIGHUP) {

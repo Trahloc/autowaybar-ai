@@ -1,6 +1,5 @@
 #include "utils.hpp"
 #include <fstream>
-#include <istream>
 #include <stdexcept>
 #include <string>
 #include <unistd.h>

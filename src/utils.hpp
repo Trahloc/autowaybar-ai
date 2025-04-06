@@ -1,17 +1,13 @@
 #pragma once
 
 #include <csignal>
-#include <filesystem>
 #include <fmt/base.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <fmt/color.h>
-#include <fstream>
 #include <json/json.h>
 #include <string>
-
-namespace fs = std::filesystem;
 
 namespace Utils {
     enum LogLevel {
