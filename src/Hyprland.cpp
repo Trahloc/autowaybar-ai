@@ -41,6 +41,10 @@ namespace Hyprland {
                 temp.x_coord = data[i]["x"].asInt();
             }
 
+            if (!data[i]["y"].empty()) {
+                temp.y_coord = data[i]["y"].asInt();
+            }
+
             float scale = 1.0f;
             if (!data[i]["scale"].empty()) {
                scale = data[i]["scale"].asFloat();
@@ -51,7 +55,12 @@ namespace Hyprland {
                 temp.width = data[i]["width"].asInt() / scale;
             }
 
-            Utils::log(Utils::LogLevel::LOG, "Monitor named {} found in x: {}, width: {}. \n", temp.name, temp.x_coord, temp.width);
+            // calculate width taking into account scaling factor
+            if (!data[i]["height"].empty()) {
+                temp.height = data[i]["height"].asInt() / scale;
+            }
+
+            Utils::log(Utils::LogLevel::LOG, "Monitor named {} found in x: {}, y: {}, width: {}. \n", temp.name, temp.x_coord, temp.y_coord, temp.width, temp.height);
             monitors.push_back(temp);
         }
 
