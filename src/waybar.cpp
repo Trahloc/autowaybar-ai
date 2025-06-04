@@ -192,6 +192,8 @@ auto Waybar::hideAllMonitors(bool is_visible) const -> void {
             Utils::log(Utils::LOG, "Mouse at position ({},{})\n", root_x, root_y);
 
         for (auto &mon : m_outputs) {
+            const int local_bar_threshold = mon.y_coord + m_bar_threshold;
+            
             // show waybar
             if (!is_visible && mon.y_coord <= root_y && root_y < mon.y_coord + 7)
             {
@@ -202,14 +204,14 @@ auto Waybar::hideAllMonitors(bool is_visible) const -> void {
                 auto temp = Hyprland::getCursorPos();
 
                 // keep it open
-                while (temp.second < m_bar_threshold && !g_interruptRequest)
+                while (temp.second < local_bar_threshold && !g_interruptRequest)
                 {
                     std::this_thread::sleep_for(80ms);
                     temp = Hyprland::getCursorPos();
                 }
             }
             // closing waybar
-            else if (is_visible && root_y < mon.y_coord + mon.height && root_y > mon.y_coord + m_bar_threshold)
+            else if (is_visible && root_y < mon.y_coord + mon.height && root_y > local_bar_threshold)
             {
                 Utils::log(Utils::INFO, "Hiding it. \n");
                 kill(m_waybar_pid, SIGUSR1);
