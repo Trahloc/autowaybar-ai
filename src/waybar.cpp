@@ -123,20 +123,20 @@ auto Waybar::hideCustom() -> void {
     // main loop
     while (!g_interruptRequest) {
         bool need_reload {false}; // this is false, until otherwise
-        const bool in_target_mon = mon.x_coord < mouse_x &&
-            mon.x_coord + mon.width > mouse_x;
-        
+        const bool in_target_mon = mon.x_coord <= mouse_x && mon.x_coord + mon.width >= mouse_x && mon.y_coord <= mouse_y && mon.y_coord + mon.height >= mouse_y;
+        const int local_bar_threshold = mon.y_coord + m_bar_threshold;
+
         // if target monitor shown
         if (in_target_mon && !mon.hidden) {
             // outside of the threshold -> hide it 
-            if (mouse_y > m_bar_threshold) {
+            if (mouse_y > local_bar_threshold) {
                 Utils::log(Utils::INFO, "Mon: {} needs to be hidden.\n", mon.name);
                 mon.hidden = true;
                 need_reload = true;
             } 
             // inside the threshold -> keep showing
-            else if (mouse_y <= m_bar_threshold) {
-                while (!g_interruptRequest && mouse_y <= m_bar_threshold) {
+            else if (mouse_y <= local_bar_threshold) {
+                while (!g_interruptRequest && mouse_y <= local_bar_threshold) {
                     std::this_thread::sleep_for(80ms);
                     std::tie(mouse_x, mouse_y) = Hyprland::getCursorPos();
                 }
@@ -146,8 +146,8 @@ auto Waybar::hideCustom() -> void {
                 need_reload = true;
             }
         } 
-        // if we touch top -> show it 
-        else if (in_target_mon && mon.hidden && mouse_y < 5) {
+        // if we touch top of the monitor -> show it 
+        else if (in_target_mon && mon.hidden && mouse_y < mon.y_coord + 7) {
             Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
             mon.hidden = false;
             need_reload = true;
@@ -191,26 +191,33 @@ auto Waybar::hideAllMonitors(bool is_visible) const -> void {
         if (m_is_console && m_is_verbose)
             Utils::log(Utils::LOG, "Mouse at position ({},{})\n", root_x, root_y);
 
-        // show waybar
-        if (!is_visible && root_y < 5) {
-            Utils::log(Utils::INFO, "Opening it. \n");
-            kill(m_waybar_pid, SIGUSR1);
-            is_visible= true;
+        for (auto &mon : m_outputs) {
+            const int local_bar_threshold = mon.y_coord + m_bar_threshold;
+            
+            // show waybar
+            if (!is_visible && mon.y_coord <= root_y && root_y < mon.y_coord + 7)
+            {
+                Utils::log(Utils::INFO, "Opening it. \n");
+                kill(m_waybar_pid, SIGUSR1);
+                is_visible = true;
 
-            auto temp = Hyprland::getCursorPos();
+                auto temp = Hyprland::getCursorPos();
 
-            // keep it open
-            while (temp.second < m_bar_threshold && !g_interruptRequest) {
-                std::this_thread::sleep_for(80ms);
-                temp = Hyprland::getCursorPos();
+                // keep it open
+                while (temp.second < local_bar_threshold && !g_interruptRequest)
+                {
+                    std::this_thread::sleep_for(80ms);
+                    temp = Hyprland::getCursorPos();
+                }
             }
+            // closing waybar
+            else if (is_visible && root_y < mon.y_coord + mon.height && root_y > local_bar_threshold)
+            {
+                Utils::log(Utils::INFO, "Hiding it. \n");
+                kill(m_waybar_pid, SIGUSR1);
+                is_visible = false;
 
-        }
-        // closing waybar
-        else if (is_visible && root_y > m_bar_threshold) {
-            Utils::log(Utils::INFO, "Hiding it. \n");
-            kill(m_waybar_pid, SIGUSR1);
-            is_visible = false;
+            }
         }
 
         std::this_thread::sleep_for(80ms);
@@ -256,19 +263,20 @@ auto Waybar::hideFocused() -> void {
         bool need_reload {false}; // this is false, until otherwise
 
         for (auto& mon : m_outputs) {
-            const bool in_current_mon = mon.x_coord < mouse_x && mon.x_coord + mon.width > mouse_x;
+            const bool in_current_mon = mon.x_coord <= mouse_x && mon.x_coord + mon.width >= mouse_x && mon.y_coord <= mouse_y && mon.y_coord + mon.height >= mouse_y;
+            const int local_bar_threshold = mon.y_coord + m_bar_threshold;
 
             // if current monitor shown
             if (in_current_mon && !mon.hidden) {
                 // outside of the threshold -> hide it 
-                if (mouse_y > m_bar_threshold) {
+                if (mouse_y > local_bar_threshold) {
                     Utils::log(Utils::INFO, "Mon: {} needs to be hidden.\n", mon.name);
                     mon.hidden = true;
                     need_reload = true;
                 } 
                 // inside the threshold -> keep showing
-                else if (mouse_y <= m_bar_threshold) {
-                    while (!g_interruptRequest && mouse_y <= m_bar_threshold) {
+                else if (mouse_y <= local_bar_threshold) {
+                    while (!g_interruptRequest && mouse_y <= local_bar_threshold) {
                         std::this_thread::sleep_for(80ms);
                         std::tie(mouse_x, mouse_y) = Hyprland::getCursorPos();
                     }
@@ -279,13 +287,13 @@ auto Waybar::hideFocused() -> void {
                 }
             } 
             // if we touch top -> show it 
-            else if (in_current_mon && mon.hidden && mouse_y < 5) {
+            else if (in_current_mon && mon.hidden && mouse_y < mon.y_coord + 7) {
                 Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
                 mon.hidden = false;
                 need_reload = true;
             }
-            // if left/right hidden -> show it
-            else if ((mon.x_coord + mon.width < mouse_x || mon.x_coord > mouse_x) && mon.hidden) {
+            // if left/right and top/bottom hidden -> show it
+            else if (((mon.x_coord + mon.width < mouse_x || mon.x_coord > mouse_x) || (mon.y_coord + mon.height < mouse_y || mon.y_coord > mouse_y)) && mon.hidden) {
                 Utils::log(Utils::INFO, "Mon: {} needs to be shown.\n", mon.name);
                 mon.hidden = false;
                 need_reload = true;

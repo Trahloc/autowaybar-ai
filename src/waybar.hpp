@@ -14,15 +14,15 @@ static bool g_interruptRequest = false;
 // TYPES
 struct monitor_info_t {
     std::string name{};
-    int x_coord{}, width{};
+    int x_coord{}, y_coord{}, width{}, height{};
     bool hidden = false;
 
     bool operator<(const monitor_info_t& other) const {
-        return x_coord < other.x_coord;
+        return x_coord < other.x_coord && y_coord < other.y_coord;
     }
 
     bool operator==(const monitor_info_t& other) const {
-        return name == other.name && x_coord == other.x_coord;
+        return name == other.name && x_coord == other.x_coord && y_coord == other.y_coord;
     }
 };
 
