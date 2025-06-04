@@ -60,7 +60,14 @@ namespace Hyprland {
                 temp.height = data[i]["height"].asInt() / scale;
             }
 
-            Utils::log(Utils::LogLevel::LOG, "Monitor named {} found in x: {}, y: {}, width: {}. \n", temp.name, temp.x_coord, temp.y_coord, temp.width, temp.height);
+            Utils::log(Utils::LogLevel::LOG,
+                "Monitor named {} found in x: {}, y: {}, width: {}, height: {}. \n",
+                temp.name,
+                temp.x_coord,
+                temp.y_coord,
+                temp.width,
+                temp.height
+            );
             monitors.push_back(temp);
         }
 

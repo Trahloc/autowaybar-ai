@@ -17,12 +17,9 @@ struct monitor_info_t {
     int x_coord{}, y_coord{}, width{}, height{};
     bool hidden = false;
 
+    // for sorting
     bool operator<(const monitor_info_t& other) const {
         return x_coord < other.x_coord && y_coord < other.y_coord;
-    }
-
-    bool operator==(const monitor_info_t& other) const {
-        return name == other.name && x_coord == other.x_coord && y_coord == other.y_coord;
     }
 };
 
@@ -34,37 +31,41 @@ enum class BarMode : std::uint8_t {
 };
 
 class Waybar {
-    public:
-        Waybar(const std::string &mode, int threshold, bool verbose);
-        auto run() -> void; // calls the apropiate operation mode
-        auto reload() const -> void; // sigusr2
-        auto setBarMode(BarMode mode); // setter for mode
-    private:
-        auto hideAllMonitors(bool is_visible = true) const -> void;
-        auto hideFocused() -> void;                  
-        auto hideCustom() -> void;
-        auto initConfigPath() const -> fs::path;     // retrieves original config filepath
-        auto initFallBackConfig() const -> fs::path; // retrieves a fallback config filepath
-        auto initPid() const -> pid_t;               // retreives pid of waybar
-        auto parseMode(const std::string &mode) -> BarMode;
-        auto getVisibleMonitors() const -> Json::Value; // retrieves current monitor
-        auto getMonitor(const std::string &name) -> monitor_info_t&; // retrieves the monitor info by a name
+public:
+    Waybar(const std::string &mode, int threshold, bool verbose);
+    auto run() -> void; // calls the apropiate operation mode
+    auto reloadPid() const -> void; // sigusr2
+    auto setBarMode(BarMode mode); // setter for mode
+private:
+    // modes
+    auto hideAllMonitors(bool is_visible = true) const -> void;
+    auto hideFocused() -> void;                  
+    auto hideCustom() -> void;
+    auto parseMode(const std::string &mode) -> BarMode;
 
-        static void handleSignal(int signal) {
-            if (signal == SIGINT || signal == SIGTERM || signal == SIGHUP) {
-                Utils::log(Utils::WARN, "Interruption detected, saving resources...\n");
-                g_interruptRequest = true;
-            }
+    // monitors
+    auto getVisibleMonitors() const -> Json::Value;
+    auto getMonitor(const std::string &name) -> monitor_info_t&; // retrieves the monitor info by a name
+    auto requestApplyVisibleMonitors(bool need_reload) -> void; 
+
+    // misc
+    auto initPid() const -> pid_t;               // retreives pid of waybar
+    auto logMousePos(int x, int y) const -> void;
+    static void handleSignal(int signal) {
+        if (signal == SIGINT || signal == SIGTERM || signal == SIGHUP) {
+            Utils::log(Utils::WARN, "Interruption detected, saving resources...\n");
+            g_interruptRequest = true;
         }
+    }
 
-        pid_t m_waybar_pid;
-        BarMode m_original_mode = BarMode::NONE;
-        int m_bar_threshold = 50;
-        bool m_is_console;
-        bool m_is_verbose;
-        std::string m_hidemon{}; // for mode BarMode::HIDE_MON
-        std::vector<monitor_info_t> m_outputs{};
-        std::unique_ptr<config> m_config;
+    pid_t m_waybar_pid;
+    BarMode m_original_mode = BarMode::NONE;
+    int m_bar_threshold = 50;
+    bool m_is_console;
+    bool m_is_verbose;
+    std::string m_hidemon{}; // for mode BarMode::HIDE_MON
+    std::vector<monitor_info_t> m_outputs{};
+    std::unique_ptr<config> m_config;
 };
 
 static auto printHelp() -> void {

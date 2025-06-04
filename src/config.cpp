@@ -36,6 +36,8 @@ auto config::init() -> void {
     }
 }
 
+// apply changes to disk
+// you still need to reload waybar pid to see changes
 auto config::saveConfig() -> void {
     std::ofstream file(m_config_path, std::iostream::trunc);
     if (!file.is_open())
@@ -44,11 +46,14 @@ auto config::saveConfig() -> void {
     file.close();
 }
 
+// Modifies the config file with the given outputs
+// you still need to reload waybar pid to see changes
 auto config::setOutputs(const Json::Value &outputs) -> void {
     m_config["output"] = outputs;
     saveConfig();
 }
 
+// restores the original config to disk
 auto config::restoreOriginal() -> void {
     std::ofstream file(m_config_path, std::iostream::trunc);
     if (!file.is_open())
