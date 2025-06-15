@@ -83,7 +83,7 @@ Waybar::Waybar(const std::string &mode, int threshold, bool verbose)
       m_is_console(isatty(fileno(stdin))),
       m_bar_threshold(threshold),
       m_is_verbose(verbose) {
-    if (std::string(std::getenv("XDG_CURRENT_DESKTOP")) != "Hyprland") {
+    if (!std::getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
         Utils::log(Utils::CRIT, "This tool ONLY supports Hyprland.");
         std::exit(EXIT_FAILURE);
     }
