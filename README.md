@@ -46,7 +46,23 @@ The program follows XDG Base Directory Specification and searches for waybar con
 
 ### Installation
 
-#### **Method 1: Build from Source**
+#### **Method 1: Easy Build Script (Recommended)**
+```bash
+# Clone the repository
+git clone https://github.com/Trahloc/autowaybar-ai.git
+cd autowaybar-ai
+
+# Check dependencies
+./build.sh deps
+
+# Build and install in one command
+./build.sh build && ./build.sh install
+
+# Or install to system (requires sudo)
+./build.sh build && ./build.sh install system
+```
+
+#### **Method 2: Manual Build**
 ```bash
 # Clone the repository
 git clone https://github.com/Trahloc/autowaybar-ai.git
@@ -63,7 +79,7 @@ cp build/linux/x86_64/release/autowaybar ~/.local/bin/
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ```
 
-#### **Method 2: Manual Compilation**
+#### **Method 3: Manual Compilation**
 ```bash
 # Clone and build manually
 git clone https://github.com/Trahloc/autowaybar-ai.git
@@ -72,7 +88,7 @@ g++ -std=c++20 src/*.cpp src/*.hpp -o autowaybar -lfmt -ljsoncpp -O3 -march=nati
 sudo cp autowaybar /usr/local/bin/
 ```
 
-#### **Method 3: Arch Linux Package (PKGBUILD)**
+#### **Method 4: Arch Linux Package (PKGBUILD)**
 ```bash
 # Clone the repository
 git clone https://github.com/Trahloc/autowaybar-ai.git
@@ -86,13 +102,24 @@ sudo pacman -U autowaybar-ai-*.pkg.tar.zst
 yay -S autowaybar-ai
 ```
 
-#### **Method 4: System Package Manager**
+#### **Method 5: System Package Manager**
 ```bash
 # Install dependencies first
 sudo pacman -S waybar hyprland fmt jsoncpp xmake gcc
 
 # Then follow Method 1 or 2 above
 ```
+
+### Build Script Features
+The included `build.sh` script provides:
+- **Dependency checking** - Verifies all required tools and libraries
+- **Multiple build modes** - Release and debug builds
+- **Easy installation** - System or user installation
+- **Testing** - Verify the binary works correctly
+- **Cleaning** - Remove build artifacts
+- **Cross-platform** - Works on Arch, Ubuntu, Fedora, etc.
+- **Colored output** - Clear status messages
+- **Error handling** - Stops on any error
 
 #### **Verification**
 After installation, verify it works:
