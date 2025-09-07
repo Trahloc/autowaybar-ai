@@ -1,11 +1,19 @@
 #include "config.hpp"
+#include "config_manager.hpp"
 #include <exception>
 #include <fstream>
 #include <sched.h>
 #include "utils.hpp"
 
-config::config(pid_t waybarpid) {
+config::config(pid_t waybarpid) : m_config_manager(nullptr) {
     m_waybar_pid = waybarpid;
+}
+
+config::~config() {
+    if (m_config_manager) {
+        delete m_config_manager;
+        m_config_manager = nullptr;
+    }
 }
 
 auto config::init() -> void {
@@ -15,56 +23,43 @@ auto config::init() -> void {
 
     Utils::log(Utils::INFO, "Waybar config file found in '{}'\n", m_config_path.string());
 
-    std::ifstream file(m_config_path);
-    if (!file) throw std::runtime_error("[CRIT] Couldn't open config file.\n");
-
     try {
-        file >> m_config;
-    } catch (std::exception e) {
-        Utils::log(Utils::CRIT, "Invalid waybar json file at {}", m_config_path.string()); 
-        file.close();
+        m_config_manager = new ConfigManager(m_config_path.string());
+    } catch (const std::exception& e) {
+        Utils::log(Utils::CRIT, "Failed to initialize config manager: {}", e.what());
         std::exit(EXIT_FAILURE);
     }
-    file.close();
 
     Utils::log(Utils::LOG, "Backuping original config.\n");
-    m_backup = m_config; 
   
-    if (m_config.isArray()) {
+    if (m_config_manager->getConfig().isArray()) {
         Utils::log(Utils::CRIT, "Multiple bars are not supported.\n");
         std::exit(EXIT_FAILURE);
     }
 }
 
-// apply changes to disk
-// you still need to reload waybar pid to see changes
-auto config::saveConfig() -> void {
-    std::ofstream file(m_config_path, std::iostream::trunc);
-    if (!file.is_open())
-        throw std::runtime_error("[ERR] Couldn't open the file.\n");
-    file << m_config;
-    file.close();
-}
-
 // Modifies the config file with the given outputs
 // you still need to reload waybar pid to see changes
 auto config::setOutputs(const Json::Value &outputs) -> void {
-    m_config["output"] = outputs;
-    saveConfig();
+    if (!m_config_manager) {
+        throw std::runtime_error("Config manager not initialized");
+    }
+    m_config_manager->setOutputs(outputs);
 }
 
 // restores the original config to disk
 auto config::restoreOriginal() -> void {
-    std::ofstream file(m_config_path, std::iostream::trunc);
-    if (!file.is_open())
-        throw std::runtime_error("[ERR] Couldn't open the file.\n");
-    file << m_backup;
-    file.close();
+    if (!m_config_manager) {
+        throw std::runtime_error("Config manager not initialized");
+    }
+    m_config_manager->restoreOriginal();
 }
 
-
 auto config::getOutputs() -> Json::Value& {
-    return m_config["output"];
+    if (!m_config_manager) {
+        throw std::runtime_error("Config manager not initialized");
+    }
+    return m_config_manager->getOutputs();
 }
 
 auto config::initFallBackConfig() const  -> fs::path {

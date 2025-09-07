@@ -11,6 +11,14 @@ using namespace std::chrono_literals;
 // globals and constants
 static bool g_interruptRequest = false;
 
+// Configuration constants
+namespace Constants {
+    constexpr int DEFAULT_BAR_THRESHOLD = 50;
+    constexpr int MOUSE_ACTIVATION_ZONE = 7;  // pixels from top of monitor
+    constexpr auto POLLING_INTERVAL = 80ms;   // mouse position polling frequency
+    constexpr size_t COMMAND_BUFFER_SIZE = 128; // buffer size for command output
+}
+
 // TYPES
 struct monitor_info_t {
     std::string name{};
@@ -60,7 +68,7 @@ private:
 
     pid_t m_waybar_pid;
     BarMode m_original_mode = BarMode::NONE;
-    int m_bar_threshold = 50;
+    int m_bar_threshold = Constants::DEFAULT_BAR_THRESHOLD;
     bool m_is_console;
     bool m_is_verbose;
     std::string m_hidemon{}; // for mode BarMode::HIDE_MON

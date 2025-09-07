@@ -1,4 +1,6 @@
 #include "utils.hpp"
+#include "raii_wrappers.hpp"
+#include "waybar.hpp"
 #include <fstream>
 #include <stdexcept>
 #include <string>
@@ -10,14 +12,16 @@
 */
 auto Utils::getProcArgs(const pid_t pid) -> std::string {
     std::string pid_s = std::to_string(pid);
-    std::ifstream proc_args("/proc/" + pid_s + "/cmdline");
-
-    if (proc_args.is_open()) {
+    std::string proc_path = "/proc/" + pid_s + "/cmdline";
+    
+    try {
+        FileWrapper proc_args(proc_path);
         std::string info;
-        std::getline(proc_args, info);
+        std::getline(proc_args.get(), info);
         return info;
-    } else
-        throw std::runtime_error("Invalid PID: " + pid_s);
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Invalid PID: " + pid_s + " - " + e.what());
+    }
 }
 
 
@@ -26,21 +30,49 @@ auto Utils::getProcArgs(const pid_t pid) -> std::string {
     @returns : a string containing the stdout from the executed program
 */
 auto Utils::execCommand(const std::string_view command) -> std::string {
-    FILE* pipe = popen(command.data(), "r");
-
-    if (!pipe) {
-        Utils::log(Utils::ERR, "Failed to execute command: {}", command);
+    // Comprehensive input validation to prevent command injection
+    std::string cmd_str(command);
+    
+    // Check for empty or whitespace-only commands
+    if (cmd_str.empty() || cmd_str.find_first_not_of(" \t\n\r") == std::string::npos) {
+        Utils::log(Utils::ERR, "Empty or whitespace-only command provided");
         return {};
     }
-
-    char buffer[128];
-    std::string result;
-
-    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-        result += buffer;
+    
+    // Check for dangerous characters that could lead to command injection
+    if (cmd_str.find_first_of(";&|`$(){}[]<>\"'\\") != std::string::npos) {
+        Utils::log(Utils::ERR, "Invalid characters in command: {}", command);
+        return {};
     }
+    
+    // Check for suspicious patterns
+    if (cmd_str.find("..") != std::string::npos || 
+        cmd_str.find("//") != std::string::npos ||
+        cmd_str.find("&&") != std::string::npos ||
+        cmd_str.find("||") != std::string::npos) {
+        Utils::log(Utils::ERR, "Suspicious pattern detected in command: {}", command);
+        return {};
+    }
+    
+    // Validate command length (prevent extremely long commands)
+    if (cmd_str.length() > 1024) {
+        Utils::log(Utils::ERR, "Command too long: {} characters", cmd_str.length());
+        return {};
+    }
+    
+    try {
+        ProcessPipe pipe(cmd_str);
+        
+        char buffer[Constants::COMMAND_BUFFER_SIZE];
+        std::string result;
 
-    pclose(pipe);
+        while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) {
+            result += buffer;
+        }
 
-    return result;
+        return result;
+    } catch (const std::exception& e) {
+        Utils::log(Utils::ERR, "Failed to execute command '{}': {}", command, e.what());
+        return {};
+    }
 }
