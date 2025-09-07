@@ -1,9 +1,23 @@
 #include "waybar.hpp"
 #include <getopt.h>
 
-auto main(int argc, char *argv[]) -> int {
-    const char *short_opts = "m:ht:v";
+auto getConfigDir() -> std::string {
+    const char* home = std::getenv("HOME");
+    if (!home) {
+        throw std::runtime_error("HOME environment variable not set");
+    }
+    return std::string(home) + "/.config/waybar";
+}
 
+struct Args {
+    std::string mode{};
+    int threshold = Constants::DEFAULT_BAR_THRESHOLD;
+    bool help = false;
+    bool verbose = false;
+};
+
+auto parseArguments(int argc, char* argv[]) -> Args {
+    const char *short_opts = "m:ht:v";
     const struct option long_opts[] = {
         {"mode", required_argument, nullptr, 'm'},
         {"help", no_argument, nullptr, 'h'},
@@ -12,54 +26,50 @@ auto main(int argc, char *argv[]) -> int {
         {nullptr, 0, nullptr, 0}
     };
 
-    std::string mode{};
+    Args args;
     int opt = 0;
-    int threshold = Constants::DEFAULT_BAR_THRESHOLD;
-    bool helpFlag = false;
-    bool verbose = false;
 
     while ((opt = getopt_long(argc, argv, short_opts, long_opts, nullptr)) != -1) {
         switch (opt) {
-        case 'm': {
-            if (optarg && strlen(optarg) > 0) {
-                mode = optarg;
-            } else {
-                Utils::log(Utils::ERR, "Mode parameter cannot be empty\n");
-                printHelp();
-                return 1;
-            }
+        case 'm':
+            args.mode = optarg;
             break;
-        }
-        case 'h': helpFlag = true; break;
-        case 't': {
-            try {
-                threshold = std::stoi(std::string(optarg));
-                if (threshold < 1 || threshold > 1000) {
-                    Utils::log(Utils::ERR, "Threshold must be between 1 and 1000 pixels, got: {}\n", threshold);
-                    printHelp();
-                    return 1;
-                }
-            } catch (const std::exception& e) {
-                Utils::log(Utils::ERR, "Invalid threshold value: {}\n", optarg);
-                printHelp();
-                return 1;
-            }
+        case 'h':
+            args.help = true;
             break;
-        }
-        case 'v': verbose = true; break;
-        default: printHelp(); return 1;
+        case 't':
+            args.threshold = std::stoi(std::string(optarg));
+            break;
+        case 'v':
+            args.verbose = true;
+            break;
+        default:
+            printHelp();
+            exit(1);
         }
     }
 
-    if (helpFlag) {
-        printHelp();
-        return 0;
-    }
+    return args;
+}
 
-    // Init waybar
-    Waybar bar(mode, threshold, verbose);
-    bar.run();
-    
-    return EXIT_SUCCESS;
+auto main(int argc, char *argv[]) -> int {
+    try {
+        std::string config_dir = getConfigDir();
+        Args args = parseArguments(argc, argv);
+
+        if (args.help) {
+            printHelp();
+            return 0;
+        }
+
+        Waybar bar(args.mode, args.threshold, args.verbose, config_dir);
+        bar.run();
+        
+        return EXIT_SUCCESS;
+        
+    } catch (const std::exception& e) {
+        log_message(CRIT, "Error: {}\n", e.what());
+        return 1;
+    }
 }
 

@@ -1,19 +1,21 @@
 ### Description
-AI-enhanced version of [autowaybar](https://github.com/Direwolfesp/autowaybar) - a program that allows various modes for waybar in [Hyprland](https://github.com/hyprwm/Hyprland). 
+**Fork of [autowaybar](https://github.com/Direwolfesp/autowaybar)** - Refactored version following anti-kruft principles.
 
 **Original work by [@Direwolfesp](https://github.com/Direwolfesp)** - all credit for the core functionality belongs to them.
 
-This fork adds modern C++20 RAII patterns, comprehensive input validation, security hardening, and XDG Base Directory Specification compliance through AI-assisted code improvements.
+This fork has been refactored to follow strict anti-kruft engineering principles: simplicity over cleverness, direct solutions over abstractions, and focused functions that do one thing well.
+
+> **Note**: This is a fork of the original project. Please consider supporting the original author [@Direwolfesp](https://github.com/Direwolfesp) by starring their repository.
 
 > [!Warning]
 > In order to work, it must follow these constraints: exactly 1 Waybar process must be running with only 1 Bar. And Waybar **must** have been launched providing **full paths** for its config file. (ie. `waybar -c ~/.config/waybar/config`)
 
 ### Features
-- **XDG Compliant**: Follows XDG Base Directory Specification for config file discovery
-- **RAII Resource Management**: Automatic cleanup of file handles and process pipes
-- **Security Hardened**: Input validation and command injection prevention
-- **Exception Safe**: Proper error handling and resource cleanup on exceptions
-- **Modern C++20**: Uses latest C++ features for better performance and safety
+- **Simple and Direct**: Clean, focused code that does one thing well
+- **Anti-Kruft Design**: Follows strict engineering principles for maintainable code
+- **Modern C++20**: Uses appropriate C++20 features without over-engineering
+- **Focused Functions**: Each function has a single, clear responsibility
+- **Minimal Dependencies**: Only essential libraries (fmt, jsoncpp)
 
 ### Requirements
 All deps except xmake are included with waybar.
@@ -32,17 +34,9 @@ jsoncpp
 - `autowaybar -m mon:DP-2`: Will hide waybar in the DP-2 monitor only.
 
 ### Configuration Discovery
-The program follows XDG Base Directory Specification and searches for waybar config in this order:
+The program searches for waybar config in this order:
 1. Command line argument path (if waybar was started with `-c` flag)
-2. `$HOME/.config/waybar/config` (XDG_CONFIG_HOME)
-3. `$HOME/waybar/config` (fallback)
-4. `/etc/xdg/waybar/config` (system-wide)
-
-### Security Features
-- **Input Validation**: Comprehensive validation of command arguments and thresholds
-- **Command Injection Prevention**: Sanitized command execution with character filtering
-- **Resource Management**: RAII patterns prevent resource leaks
-- **Exception Safety**: Proper cleanup even when exceptions occur 
+2. `$HOME/.config/waybar/config` (default location) 
 
 ### Installation
 
@@ -153,11 +147,11 @@ echo $XDG_SESSION_DESKTOP
 ```
 
 ### Development
-The codebase uses modern C++20 features and RAII patterns:
-- **RAII Wrappers**: `FileWrapper`, `OutputFileWrapper`, `ProcessPipe`, `ConfigManager`
-- **Exception Safety**: All resource management is exception-safe
-- **Input Validation**: Comprehensive validation prevents security issues
-- **XDG Compliance**: Follows standard configuration discovery patterns
+The codebase follows anti-kruft principles:
+- **Focused Functions**: Each function does one thing well
+- **Direct Solutions**: No unnecessary abstractions or wrapper classes
+- **Simple Error Handling**: Clear error messages and fail-fast approach
+- **Minimal Complexity**: Code is easy to understand and maintain
 ### Run
 Now you can run it by doing:
 ```bash
@@ -181,28 +175,15 @@ hyprctl monitors | grep Monitor
 Monitor eDP-1 (ID 0):
 ```
 
-### XDG Compliance
-This project follows the XDG Base Directory Specification:
-- **Config Discovery**: Automatically finds waybar config in standard XDG locations
-- **Environment Variables**: Respects `$HOME` and `$XDG_CONFIG_HOME`
-- **Fallback Paths**: Graceful fallback to system-wide configs
-- **No Hardcoded Paths**: All paths are dynamically resolved
-
-### Security & Quality
-- **Input Validation**: All user inputs are validated and sanitized
-- **Resource Management**: RAII patterns ensure no resource leaks
-- **Exception Safety**: Proper cleanup even when errors occur
-- **Modern C++20**: Uses latest language features for better safety and performance
-
-### AI Enhancements
-This fork includes AI-assisted improvements:
-- **Security Hardening**: Fixed critical vulnerabilities and added input validation
-- **RAII Implementation**: Modern C++ resource management patterns
-- **XDG Compliance**: Proper configuration discovery following Linux standards
-- **Code Quality**: Extracted magic numbers, improved error handling, fixed typos
-- **Documentation**: Enhanced README with comprehensive feature descriptions
+### Code Quality
+This fork follows anti-kruft engineering principles:
+- **Simplicity Over Cleverness**: Direct solutions instead of complex abstractions
+- **Focused Functions**: Each function has a single, clear responsibility
+- **Minimal Dependencies**: Only essential libraries are used
+- **Clear Error Handling**: Simple, actionable error messages
+- **Maintainable Code**: Easy to understand and modify
 
 ### Credits
 - **Original Author**: [@Direwolfesp](https://github.com/Direwolfesp) - [autowaybar](https://github.com/Direwolfesp/autowaybar)
-- **AI Assistant**: Claude Sonnet 4 (Anthropic) - Code improvements and security enhancements
+- **Refactoring**: Code refactored to follow anti-kruft engineering principles
 - **License**: MIT (inherited from original project)

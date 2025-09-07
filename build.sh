@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # autowaybar-ai build script
-# AI-enhanced version of autowaybar with security hardening and modern C++20 patterns
+# Refactored version of autowaybar following anti-kruft principles
 
 set -e  # Exit on any error
 
@@ -32,6 +32,19 @@ print_error() {
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# Function to check if ~/.local/bin is in PATH
+is_local_bin_in_path() {
+    local local_bin_path="$HOME/.local/bin"
+    local path_dirs=($(echo "$PATH" | tr ':' ' '))
+    
+    for dir in "${path_dirs[@]}"; do
+        if [ "$dir" = "$local_bin_path" ]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 # Function to check dependencies
@@ -130,7 +143,19 @@ install_binary() {
         mkdir -p ~/.local/bin
         cp "$binary_path" ~/.local/bin/
         print_success "Installed to ~/.local/bin/autowaybar"
-        print_warning "Make sure ~/.local/bin is in your PATH"
+        
+        # Check if ~/.local/bin is in PATH and show appropriate message
+        if is_local_bin_in_path; then
+            print_success "~/.local/bin is already in your PATH"
+        else
+            print_warning "~/.local/bin is not in your PATH. Please add it to your shell configuration:"
+            echo ""
+            echo "  For bash: echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+            echo "  For zsh:  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
+            echo "  For fish: echo 'set -gx PATH \$HOME/.local/bin \$PATH' >> ~/.config/fish/config.fish"
+            echo ""
+            echo "  Then restart your shell or run: source ~/.bashrc (or ~/.zshrc)"
+        fi
     fi
 }
 

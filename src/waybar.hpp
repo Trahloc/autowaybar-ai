@@ -1,22 +1,32 @@
 #include <array>
 #include <csignal>
 #include <memory>
-#include "config.hpp"
+#include <atomic>
+#include "json/value.h"
+#include "json/reader.h"
+#include "json/writer.h"
+#include <filesystem>
+#include <fstream>
 #include <signal.h>
 #include "utils.hpp"
 #include <vector>
 
 using namespace std::chrono_literals;
 
-// globals and constants
-static bool g_interruptRequest = false;
+// Forward declarations
+class Waybar;
+inline auto printHelp() -> void;
 
 // Configuration constants
 namespace Constants {
     constexpr int DEFAULT_BAR_THRESHOLD = 50;
     constexpr int MOUSE_ACTIVATION_ZONE = 7;  // pixels from top of monitor
     constexpr auto POLLING_INTERVAL = 80ms;   // mouse position polling frequency
-    constexpr size_t COMMAND_BUFFER_SIZE = 128; // buffer size for command output
+    constexpr int MIN_THRESHOLD = 1;          // minimum threshold value
+    constexpr int MAX_THRESHOLD = 1000;       // maximum threshold value
+    constexpr int MONITOR_MODE_PREFIX_LENGTH = 4;  // "mon:" prefix length
+    constexpr int SINGLE_MONITOR_THRESHOLD = 1;    // fallback threshold for single monitor
+    constexpr int CONFIG_FLAG_COUNT = 4;           // number of command line flags
 }
 
 // TYPES
@@ -25,22 +35,35 @@ struct monitor_info_t {
     int x_coord{}, y_coord{}, width{}, height{};
     bool hidden = false;
 
-    // for sorting
+    // for sorting - improved comparison logic
     bool operator<(const monitor_info_t& other) const {
-        return x_coord < other.x_coord && y_coord < other.y_coord;
+        // Primary sort by x-coordinate, secondary by y-coordinate
+        if (x_coord != other.x_coord) {
+            return x_coord < other.x_coord;
+        }
+        return y_coord < other.y_coord;
+    }
+    
+    // Add equality operator for completeness
+    bool operator==(const monitor_info_t& other) const {
+        return name == other.name && 
+               x_coord == other.x_coord && 
+               y_coord == other.y_coord &&
+               width == other.width && 
+               height == other.height;
     }
 };
 
 enum class BarMode : std::uint8_t {
     HIDE_ALL,
     HIDE_FOCUSED,
-    HIDE_MON,
-    NONE
+    HIDE_MON
 };
 
 class Waybar {
 public:
-    Waybar(const std::string &mode, int threshold, bool verbose);
+    Waybar(const std::string &mode, int threshold, bool verbose, const std::string &config_dir);
+    ~Waybar();
     auto run() -> void; // calls the apropiate operation mode
     auto reloadPid() const -> void; // sigusr2
     auto setBarMode(BarMode mode); // setter for mode
@@ -50,33 +73,93 @@ private:
     auto hideFocused() -> void;                  
     auto hideCustom() -> void;
     auto parseMode(const std::string &mode) -> BarMode;
+    auto runFocusedMode() -> void;
+    auto runCustomMode() -> void;
+    auto validateMonitorExists() -> void;
+    
+    // custom mode helpers
+    auto setupCustomMode() -> void;
+    auto runCustomModeLoop() -> void;
+    auto initializeCustomModeMouse() -> std::pair<int, int>;
+    auto processCustomModeIteration(monitor_info_t& mon, int mouse_x, int mouse_y, int local_bar_threshold) -> bool;
+    auto showHiddenMonitor(monitor_info_t& mon) -> bool;
+    auto cleanupCustomMode() -> void;
+    auto handleMonitorThreshold(monitor_info_t& mon, int& mouse_x, int& mouse_y, int local_bar_threshold) -> bool;
+    
+    // focused mode helpers
+    auto setupFocusedMode() -> void;
+    auto validateFocusedModeConfig() -> void;
+    auto runFocusedModeLoop() -> void;
+    auto initializeMousePosition() -> std::pair<int, int>;
+    auto applyChanges(bool need_reload) -> void;
+    auto sleepAndUpdateMouse(int& mouse_x, int& mouse_y) -> void;
+    auto cleanupFocusedMode() -> void;
+    auto processFocusedMonitors(int mouse_x, int mouse_y) -> bool;
+    auto isCursorInCurrentMonitor(const monitor_info_t& mon, int mouse_x, int mouse_y) -> bool;
+    auto processCurrentMonitor(monitor_info_t& mon, int mouse_x, int mouse_y) -> bool;
+    auto handleVisibleMonitor(monitor_info_t& mon, int mouse_x, int mouse_y) -> bool;
+    auto handleHiddenMonitor(monitor_info_t& mon, int mouse_x, int mouse_y) -> bool;
+    
+    // all monitors mode helpers
+    auto setupAllMonitorsMode(bool& is_visible) const -> void;
+    auto runAllMonitorsLoop(bool is_visible) const -> void;
+    auto cleanupAllMonitorsMode() const -> void;
+    auto processAllMonitorsVisibility(int root_x, int root_y, bool is_visible) const -> bool;
+    auto processMonitorVisibility(const monitor_info_t& mon, int root_y, bool is_visible) const -> bool;
+    auto showWaybarAndKeepOpen(const monitor_info_t& mon, int local_bar_threshold) const -> bool;
+    auto hideWaybarAndReturnFalse() const -> bool;
+    auto shouldShowWaybar(const monitor_info_t& mon, int root_y) const -> bool;
+    auto shouldHideWaybar(const monitor_info_t& mon, int root_y, int threshold) const -> bool;
+    auto showWaybar() const -> void;
+    auto hideWaybar() const -> void;
 
     // monitors
-    auto getVisibleMonitors() const -> Json::Value;
     auto getMonitor(const std::string &name) -> monitor_info_t&; // retrieves the monitor info by a name
     auto requestApplyVisibleMonitors(bool need_reload) -> void; 
 
     // misc
     auto initPid() const -> pid_t;               // retreives pid of waybar
-    auto logMousePos(int x, int y) const -> void;
-    static void handleSignal(int signal) {
+    
+    // initialization
+    auto initialize() -> void;
+    
+    // config management
+    auto initConfig() -> void;
+    auto findConfigPath() -> std::string;
+    auto loadConfig() -> void;
+    auto validateConfig() -> void;
+    auto getConfigPath() -> std::string;
+    auto saveConfig() -> void;
+    auto getOutputs() -> Json::Value&;
+    auto setOutputs(const Json::Value &outputs) -> void;
+    auto restoreOriginal() -> void;
+    auto handleSignal(int signal) -> void {
         if (signal == SIGINT || signal == SIGTERM || signal == SIGHUP) {
-            Utils::log(Utils::WARN, "Interruption detected, saving resources...\n");
-            g_interruptRequest = true;
+            log_message(WARN, "Interruption detected, saving resources...\n");
+            m_interrupt_request.store(true, std::memory_order_release);
         }
+    }
+    static void cleanupSignals() {
+        std::signal(SIGINT, SIG_DFL);
+        std::signal(SIGTERM, SIG_DFL);
+        std::signal(SIGHUP, SIG_DFL);
     }
 
     pid_t m_waybar_pid;
-    BarMode m_original_mode = BarMode::NONE;
-    int m_bar_threshold = Constants::DEFAULT_BAR_THRESHOLD;
+    BarMode m_original_mode = BarMode::HIDE_ALL;
     bool m_is_console;
     bool m_is_verbose;
+    int m_bar_threshold = Constants::DEFAULT_BAR_THRESHOLD;
     std::string m_hidemon{}; // for mode BarMode::HIDE_MON
     std::vector<monitor_info_t> m_outputs{};
-    std::unique_ptr<config> m_config;
+    std::string m_config_path;
+    std::string m_config_dir;
+    Json::Value m_config;
+    Json::Value m_backup;
+    std::atomic<bool> m_interrupt_request{false};
 };
 
-static auto printHelp() -> void {
+inline auto printHelp() -> void {
     using namespace fmt;
 
     struct Flag {
@@ -94,7 +177,7 @@ static auto printHelp() -> void {
     print(fg(color::magenta) | emphasis::bold, "--mode ");
     print(fg(color::white), "<Mode> \n");
 
-    constexpr std::array<Flag, 4> flags = {{
+    constexpr std::array<Flag, Constants::CONFIG_FLAG_COUNT> flags = {{
         {.name = "-m --mode", .description = "Select the operation mode for waybar."},
         {.name = "-t --threshold", .description = "Threshold in pixels that should match your waybar width"},
         {.name = "-h --help", .description = "Show this help"},

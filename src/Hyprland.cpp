@@ -1,77 +1,63 @@
 #include "Hyprland.hpp"
 
 // Exclusive for Hyprland, wont work with other WM
-namespace Hyprland {
 
-    // returns cursor x and y coords
-    auto getCursorPos() -> std::pair<int, int> {
-        const std::string_view cmd = "hyprctl cursorpos";
-        std::istringstream stream(Utils::execCommand(cmd));
-
-        int xpos, ypos;
-        char basurilla;
-        if (stream >> xpos >> basurilla >> ypos)
-            return std::pair<int, int>{xpos, ypos};
-
+// returns cursor x and y coords
+auto getCursorPos() -> std::pair<int, int> {
+    const std::string_view cmd = "hyprctl cursorpos";
+    std::string result = execute_command(cmd);
+    
+    if (result.empty()) {
         return std::pair<int, int>{-1, -1};
     }
+    
+    std::istringstream stream(result);
+    int xpos, ypos;
+    char separator;
+    
+    if (stream >> xpos >> separator >> ypos) {
+        return std::pair<int, int>{xpos, ypos};
+    }
 
-    // returns a vector with the monitor information provided by Hyprland
-    auto getMonitorsInfo() -> std::vector<monitor_info_t> {
+    return std::pair<int, int>{-1, -1};
+}
+
+// returns a vector with the monitor information provided by Hyprland
+auto getMonitorsInfo() -> std::vector<monitor_info_t> {
         const std::string_view cmd = "hyprctl monitors all -j";
-        std::istringstream stream(Utils::execCommand(cmd));
+        std::istringstream stream(execute_command(cmd));
 
         Json::Value data;
-        stream >> data;
+        Json::CharReaderBuilder builder;
+        std::string errors;
+        
+        if (!Json::parseFromStream(builder, stream, &data, &errors)) {
+            throw std::runtime_error("Invalid JSON response from hyprctl");
+        }
+
+        if (!data.isArray()) {
+            throw std::runtime_error("Invalid JSON structure from hyprctl");
+        }
 
         std::vector<monitor_info_t> monitors;
-        monitors.reserve(2);
+        monitors.reserve(data.size());
 
-        // fetch all monitors info
-        for (int i = 0; i < data.size(); ++i) {
+        for (const auto& monitor : data) {
             monitor_info_t temp;
+            temp.name = monitor["name"].asString();
+            temp.x_coord = monitor["x"].asInt();
+            temp.y_coord = monitor["y"].asInt();
+            
+            float scale = monitor["scale"].empty() ? 1.0f : monitor["scale"].asFloat();
+            temp.width = static_cast<int>(monitor["width"].asInt() / scale);
+            temp.height = static_cast<int>(monitor["height"].asInt() / scale);
 
-            // names
-            if (!data[i]["name"].empty()) {
-                temp.name = data[i]["name"].asString();
-            }
-
-            // x coord
-            if (!data[i]["x"].empty()) {
-                temp.x_coord = data[i]["x"].asInt();
-            }
-
-            if (!data[i]["y"].empty()) {
-                temp.y_coord = data[i]["y"].asInt();
-            }
-
-            float scale = 1.0f;
-            if (!data[i]["scale"].empty()) {
-               scale = data[i]["scale"].asFloat();
-            }
-
-            // calculate width taking into account scaling factor
-            if (!data[i]["width"].empty()) {
-                temp.width = data[i]["width"].asInt() / scale;
-            }
-
-            // calculate width taking into account scaling factor
-            if (!data[i]["height"].empty()) {
-                temp.height = data[i]["height"].asInt() / scale;
-            }
-
-            Utils::log(Utils::LogLevel::LOG,
+            log_message(LOG,
                 "Monitor named {} found in x: {}, y: {}, width: {}, height: {}. \n",
-                temp.name,
-                temp.x_coord,
-                temp.y_coord,
-                temp.width,
-                temp.height
+                temp.name, temp.x_coord, temp.y_coord, temp.width, temp.height
             );
             monitors.push_back(temp);
         }
 
         return monitors;
     }
-
-} // namespace Hyprland

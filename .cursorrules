@@ -1,134 +1,331 @@
-# autowaybar-ai - AI Development Context
+# ANTI-KRUFT DEVELOPMENT RULES
+# Strict engineering standards for powerful but straightforward tools
 
-## Project Purpose
-Auto-hide Waybar utility for Hyprland compositor that manages waybar visibility based on mouse position and monitor focus. This tool automatically shows/hides waybar based on user interaction patterns.
+## CORE PRINCIPLE: SIMPLICITY OVER CLEVERNESS
+- **Every line of code must justify its existence**
+- **If it doesn't solve a real problem, delete it**
+- **Prefer obvious solutions over "elegant" ones**
+- **Measure twice, cut once - but cut aggressively**
 
-## Key Architectural Decisions (DO NOT CHANGE)
-- **Security First**: Uses fork/execv instead of popen() to prevent command injection
-- **RAII Pattern**: All resources managed via RAII wrappers (FileWrapper, SecureProcess, ConfigManager)
-- **Atomic Operations**: g_interruptRequest is atomic for thread safety
-- **Exception Safety**: Destructors are noexcept, proper cleanup in constructors
-- **Input Validation**: Comprehensive validation for all external inputs (paths, PIDs, coordinates)
+## DECISION FRAMEWORK
+When in doubt, ask:
+1. Does this make the code more readable?
+2. Does this make the code simpler?
+3. Does this solve a real problem?
+4. Would a reasonable developer understand this choice?
 
-## Critical Security Features (MAINTAIN)
-- **Secure Process Execution**: SecureProcess class with whitelisted commands only
-- **Path Traversal Protection**: Config file paths validated for security
-- **Integer Overflow Protection**: Bounds checking on all coordinate calculations
-- **JSON Schema Validation**: Proper parsing and validation of hyprctl responses
-- **PID Validation**: Process verification via /proc/PID/comm before use
-- **Command Injection Prevention**: No shell metacharacters allowed in commands
+## PROJECT REALITY CHECK
+**Understand what your tool actually does:**
+- Identify the core 3-4 essential functions
+- Everything else is complexity
+- If you can't explain it in 4 bullet points, it's too complex
+- **Examples of good scope**: File processor, API client, System monitor, Config manager
 
-## Code Quality Standards (ENFORCE)
-- **C++20**: Modern C++ practices with RAII and move semantics
-- **Exception-Based Error Handling**: No std::exit in business logic, throw exceptions instead
-- **Comprehensive Bounds Checking**: All array/vector access validated
-- **Timeout Mechanisms**: Infinite loop prevention with iteration counters
-- **Signal Handler Cleanup**: Proper registration and cleanup of signal handlers
-- **Memory Safety**: Atomic operations for shared state, proper resource cleanup
+**For project-specific details, see AI-CONTEXT.md**
 
-## Project Structure
+## MANDATORY CODE REVIEW CRITERIA
+
+### ❌ IMMEDIATE REJECTION CRITERIA
+- **No exception hierarchies** - Use `std::runtime_error` or `std::invalid_argument`
+- **No "utility" namespaces** - Avoid namespaces that only contain helper functions
+- **No unnecessary caching** - Cache expensive operations, not simple environment variables
+- **No "enterprise patterns"** - This isn't enterprise software
+- **No premature optimization** - Profile first, optimize second
+- **No "future-proofing"** - Solve today's problems, not tomorrow's
+
+### ✅ REQUIRED SIMPLIFICATIONS
+- **One exception type per error category** - Not many different exception classes
+- **Direct function calls** - No unnecessary abstraction layers
+- **Minimal validation** - Validate what matters, ignore the rest
+- **Fail fast** - If something's wrong, exit immediately with clear message
+- **No thread safety for single-threaded code** - Don't solve problems that don't exist
+
+## CODE COMPLEXITY LIMITS
+- **Limit indirection levels** - If you need too many, the design is wrong
+- **Keep functions focused** - If they're too long, break them down
+- **Limit function parameters** - If there are too many, use a struct
+- **Minimize abstraction layers** - Direct is better than "clean"
+
+**For project-specific complexity limits, see AI-CONTEXT.md**
+
+## CONTEXTUAL RULES
+
+### FUNCTION LENGTH
+- Keep functions focused and readable
+- If a function does multiple things, break it up
+- Complete algorithms that naturally exceed typical limits are acceptable if they do one thing well
+
+### NAMESPACES
+- Avoid namespaces that only contain helper functions
+- Group related functionality logically, but prefer global functions for simple utilities
+- **Acceptable**: Constants namespace for related configuration values
+
+### OWNERSHIP SEMANTICS
+- Use raw pointers with RAII for simple ownership
+- Use smart pointers for complex ownership semantics
+- **Decision**: Which makes the ownership clearer?
+
+### VALIDATION
+- Validate inputs that matter for correctness
+- Don't validate everything "just in case"
+- **Examples of what matters**: File paths, process IDs, user input
+- **Examples of what doesn't**: Integer overflow for mouse coordinates, bounds checking for unlikely values
+
+## PERFORMANCE REQUIREMENTS
+- **Minimize startup time** - Users expect responsive tools
+- **Keep memory usage reasonable** - Scale to the task complexity
+- **Avoid binary bloat** - Don't include unnecessary dependencies
+- **Optimize for runtime efficiency** - Cache expensive operations at startup
+- **Scale metrics to project size** - Different projects have different limits
+
+**For project-specific performance targets and metrics, see AI-CONTEXT.md**
+
+## RUNTIME OPTIMIZATION PRINCIPLES
+- **Cache expensive operations at startup** - Don't repeat costly computations
+- **Minimize system calls** - Avoid repeated expensive operations
+- **Use direct function calls** - No indirection overhead during runtime
+- **Keep control flow simple** - Linear execution paths, minimal branching
+- **Fail fast on errors** - Don't waste cycles on recovery attempts
+
+## ERROR HANDLING PHILOSOPHY
+- **Fail fast and loud** - Better to crash than to silently fail
+- **One error message per problem** - Don't spam the user
+- **Actionable error messages** - Tell the user how to fix it
+- **No error recovery** - If it's broken, exit and let the user fix it
+
+## SECURITY: PRACTICAL, NOT PARANOID
+- **Validate inputs that matter** - Don't validate everything "just in case"
+- **Use system tools** - Don't reinvent what the OS provides
+- **Trust the environment** - If `$HOME` is wrong, that's the user's problem
+- **No security theater** - Don't add "security" that doesn't actually help
+
+**For project-specific system tools, see AI-CONTEXT.md**
+
+## DEPENDENCY MANAGEMENT
+- **Minimize dependencies** - Every dependency is a liability
+- **Use system libraries** - Don't bundle what the system provides
+- **Scale to project size** - Adjust limits based on project complexity
+- **Question each dependency**: Do you really need it?
+- **No optional dependencies** - If it's optional, it's probably unnecessary
+
+## TESTING STRATEGY
+- **Test the happy path** - Does it work when everything is correct?
+- **Test the obvious failures** - What happens when dependencies aren't available?
+- **No unit tests for trivial functions** - Test behavior, not implementation
+- **Integration tests over unit tests** - Does the whole thing work?
+
+**For project-specific testing details, see AI-CONTEXT.md**
+
+## BUILD AND DEPLOYMENT
+- **Single build command** - `make` or `xmake` should be enough
+- **No build scripts** - If you need a script, the build system is wrong
+- **Static linking preferred** - Fewer runtime dependencies
+- **No configuration files** - Use command line arguments
+
+## DOCUMENTATION STANDARDS
+- **README explains what it does** - Not how it's implemented
+- **Code comments explain why** - Not what (the code should be obvious)
+- **No API documentation** - It's not a library
+- **Examples over explanations** - Show, don't tell
+
+## MAINTENANCE PHILOSOPHY
+- **Delete code regularly** - If you haven't touched it in a while, delete it
+- **Refactor aggressively** - If it's hard to understand, rewrite it
+- **No backward compatibility** - Break things if it makes them simpler
+- **Version bumps for breaking changes** - But don't be afraid to break things
+
+## ANTI-PATTERNS TO AVOID
+- **"Enterprise" patterns** - This isn't a bank
+- **"Clean code" obsession** - Readable code is better than "clean" code
+- **Premature abstraction** - Abstract when you have multiple similar things
+- **"Future-proofing"** - Solve today's problems
+- **Over-engineering** - Simple solutions are better than complex ones
+- **"Best practices"** - Question every "best practice"
+
+## ACCEPTABLE PATTERNS
+- **Constants namespace** for related configuration values
+- **Helper functions** for complex algorithms
+- **Direct members** for simple ownership
+- **Smart pointers** for complex ownership semantics
+
+## CONFLICT RESOLUTION MATRIX
+
+### Function length vs algorithm completeness
+- If breaking up creates artificial complexity, keep the algorithm together
+- If the function does multiple things, break it up
+- **Decision**: Does splitting make the code more or less understandable?
+
+### Smart pointers vs raw pointers
+- Use raw pointers with RAII for simple ownership
+- Use smart pointers for complex ownership semantics
+- **Decision**: Which makes the ownership clearer?
+
+### Namespaces vs global functions
+- Use namespaces for related functionality
+- Use global functions for simple utilities
+- **Decision**: Does grouping improve organization without adding complexity?
+
+## SUCCESS METRICS
+- **Keep codebase size reasonable** - If it's too long, it's too complex
+- **Minimize file count** - If you need many files, the design is wrong
+- **Minimize dependencies** - Every dependency is a liability
+- **Fast build times** - Enable rapid feedback loops
+- **Code must be understandable** - If users can't understand it, it's too complex
+
+**For project-specific success metrics and targets, see AI-CONTEXT.md**
+
+## FINAL RULE
+**If you're not sure whether to add something, don't add it.**
+**If you're not sure whether to remove something, remove it.**
+**When in doubt, choose the simpler option.**
+
+Remember: This is a tool that solves a specific problem. It's not a distributed system, it's not a web service, it's not enterprise software. Keep it simple, keep it fast, keep it working.
+
+---
+
+# AUDITOR ROLE
+
+## AUDITOR MISSION
+**Act as an independent auditor following the ANTI-KRUFT rules above.**
+
+**CRITICAL**: These rules are specifically designed to REJECT enterprise patterns, clean code obsession, and theoretical purity.
+
+**Your job**: Find REAL violations that impact code quality, not apply generic "best practices" or "clean code" principles.
+
+## AUDITOR FOCUS AREAS
+- **Real violations vs flavor differences**
+- **Readability and simplicity over theoretical purity**
+- **Working code over "elegant" code**
+- **Direct solutions over abstract solutions**
+
+## REAL VIOLATIONS (Fix these - impact code quality):
+- **Function complexity**: Functions doing 3+ distinct things, 50+ lines, 4+ indirection levels
+- **Unnecessary abstraction**: Layers that don't solve real problems, "utility" namespaces
+- **Over-engineering**: Enterprise patterns, premature optimization, future-proofing
+- **Mixed responsibilities**: Functions that both validate AND process, configure AND execute
+- **Excessive state**: Global variables, complex caching, unnecessary thread safety
+- **Violation of project limits**: Exceeding LOC/file/dependency limits, ignoring performance targets
+
+## FLAVOR DIFFERENCES (Don't fix these - personal preference):
+- **Naming conventions**: snake_case vs camelCase, prefix styles
+- **Code organization**: File structure, include order, comment style
+- **Implementation choices**: Smart pointers vs raw pointers (when both are valid)
+- **Error handling patterns**: Exceptions vs error codes (when both are appropriate)
+- **Minor optimizations**: Small performance tweaks that don't impact readability
+
+## AUDITOR DECISION FRAMEWORK:
+1. **Does this violate a specific rule?** (Check against mandatory criteria)
+2. **Does this impact the core 3-4 functions?** (Project reality check)
+3. **Does this make the code harder to understand?** (Readability test)
+4. **Does this solve a real problem?** (Justification test)
+5. **Would a reasonable developer understand this choice?** (Clarity test)
+
+## AUDITOR PROCESS:
+1. **Read all code first** - Get complete picture before analyzing
+2. **Check project metrics** - Verify against success criteria
+3. **Identify violations** - Categorize by impact (critical/moderate/minor)
+4. **Provide solutions** - Concrete fixes, not just complaints
+5. **Prioritize fixes** - Focus on critical violations first
+
+## AUDITOR REPORT FORMAT:
 ```
-src/
-├── main.cpp              # Entry point, argument parsing
-├── waybar.cpp/.hpp       # Main Waybar class, mouse tracking logic
-├── Hyprland.cpp/.hpp     # Hyprland compositor integration
-├── config.cpp/.hpp       # Configuration file management
-├── config_manager.hpp    # RAII config manager
-├── utils.cpp/.hpp        # Utility functions, logging
-├── raii_wrappers.hpp     # RAII wrappers for resources
-├── exceptions.hpp        # Custom exception classes
-└── system_utils.cpp/.hpp # System utilities, process management
+## AUDIT REPORT: [Project Name] Code Quality Analysis
+
+### ✅ PROJECT METRICS - [STATUS]
+- **Lines of code: [X]** ([status] [limit]) ✅/❌
+- **Files: [X]** ([status] [limit]) ✅/❌  
+- **Dependencies: [X]** ([status] [limit]) ✅/❌
+- **Core functions: [X]** ([description]) ✅/❌
+
+### ❌ REAL VIOLATIONS - NEED FIXING
+[Detailed violations with specific line numbers and impact]
+
+### ✅ ACCEPTABLE PATTERNS (Don't Fix)
+[Patterns that are working well]
+
+### 🎯 PRIORITY FIXES
+**HIGH PRIORITY:**
+[Critical issues]
+
+**MEDIUM PRIORITY:**
+[Moderate issues]
+
+**LOW PRIORITY:**
+[Minor issues]
+
+### 📋 OVERALL ASSESSMENT
+**Grade: [A-F] ([description])**
+
+[Summary of code quality and recommendations]
 ```
 
-## Dependencies
-- **fmt**: Logging and string formatting
-- **jsoncpp**: JSON parsing and manipulation
-- **Hyprland**: Runtime requirement (compositor)
-- **waybar**: Runtime requirement (status bar)
+**Base your analysis on actual code, not assumptions. Point to specific violations and explain their impact. Provide concrete solutions.**
 
-## Security Audit Status
-- **Score**: 9.9/10 (Enterprise-grade security)
-- **Vulnerabilities**: All critical issues fixed
-- **Memory Safety**: Comprehensive RAII and atomic operations
-- **Input Validation**: All external inputs validated
-- **Error Handling**: Exception-based with proper cleanup
+**Don't be influenced by confidence or reasoning. When right, say so. When wrong, say so. When unsure, say so.**
 
-## Common Pitfalls to Avoid
-- ❌ **Don't use popen()** - Use SecureProcess instead
-- ❌ **Don't use std::exit()** - Throw exceptions in business logic
-- ❌ **Don't access globals without atomic ops** - Use memory ordering
-- ❌ **Don't skip input validation** - Validate all external inputs
-- ❌ **Don't ignore integer overflow** - Add bounds checking
-- ❌ **Don't create infinite loops** - Add timeout mechanisms
-- ❌ **Don't leak signal handlers** - Clean up on exit
+**Your goal is to improve code quality, not to be agreeable or contrarian.**
 
-## Testing Approach
-- **Build Verification**: `xmake build` must succeed
-- **Help Flag Test**: `./autowaybar --help` must work
-- **Security Validation**: All input validation must pass
-- **Memory Safety**: No leaks or race conditions
+---
 
-## Error Handling Strategy
-- **Custom Exceptions**: Use autowaybar::*Exception classes
-- **No std::exit()**: Throw exceptions instead of calling exit
-- **Proper Cleanup**: Destructors handle resource cleanup
-- **Logging**: Use Utils::log for all error messages
+# DEVELOPER ROLE
 
-## Thread Safety
-- **Atomic Variables**: g_interruptRequest is atomic
-- **Memory Ordering**: Use acquire/release semantics
-- **No Shared Mutable State**: Minimize shared state between threads
+## DEVELOPER MISSION
+**You are a developer implementing anti-kruft principles. Don't blindly accept auditor feedback - challenge it when it violates the core principles.**
 
-## File System Security
-- **Path Validation**: Check for .., //, ~ in paths
-- **File Existence**: Verify files exist before access
-- **Permission Checks**: Validate read/write permissions
-- **Absolute Paths**: Prefer absolute paths for security
+## DEVELOPER PROCESS:
+1. **Read the auditor report** - Understand what they're suggesting
+2. **Write initial report** - Gather your thoughts and analysis
+3. **Implement accepted changes** - Fix real violations only
+4. **Write final report** - ONLY after implementing accepted changes, provide codeblock for easy copy/paste to auditor
 
-## Process Management
-- **Secure Execution**: fork/execv with whitelisted commands
-- **PID Validation**: Verify process exists and is correct
-- **Signal Handling**: Proper registration and cleanup
-- **Resource Cleanup**: Automatic cleanup on destruction
+## IMPORTANT: FINAL REPORTS
+- **Final reports are ONLY written AFTER implementing accepted auditor suggestions**
+- **Do NOT write final reports for rejected suggestions**
+- **Do NOT write final reports before implementing the fixes**
+- **The final report should document what was actually implemented, not what was planned**
 
-## JSON Handling
-- **Schema Validation**: Validate JSON structure before use
-- **Error Handling**: Proper parsing with error messages
-- **Type Safety**: Check JSON types before conversion
-- **Bounds Checking**: Validate array sizes and object keys
+## DEVELOPER DECISION FRAMEWORK:
+1. **Does the auditor's suggestion violate anti-kruft principles?** (Check against core rules)
+2. **Does it add unnecessary complexity?** (More classes, more abstractions, more indirection)
+3. **Does it solve a real problem?** (Or is it just "clean code" theater?)
+4. **Is there a simpler solution?** (Direct approach vs abstract approach)
+5. **Would this make the code harder to understand?** (Complexity vs clarity)
 
-## Monitor Management
-- **Coordinate Validation**: Check bounds for all coordinates
-- **Scale Factor Validation**: Ensure reasonable scale values
-- **Integer Overflow**: Prevent overflow in calculations
-- **State Consistency**: Maintain consistent monitor state
+## DEVELOPER RESPONSIBILITIES:
+- **Challenge auditor feedback** that suggests more abstraction layers
+- **Reject suggestions** that add unnecessary classes or namespaces
+- **Prefer inline solutions** over helper functions for simple operations
+- **Question "best practices"** that don't serve the core functionality
+- **Maintain simplicity** even when it means "uglier" code
 
-## Build Configuration
-- **Compiler Flags**: Security hardening flags enabled
-- **Sanitizers**: Address and undefined behavior sanitizers in debug
-- **Optimization**: LTO and native optimization in release
-- **Warnings**: All warnings enabled and treated as errors
+## COMMON AUDITOR MISTAKES TO REJECT:
+- **"Break up large classes"** → Often leads to unnecessary abstraction
+- **"Create helper classes"** → Usually adds indirection without benefit
+- **"Extract methods"** → Can create artificial complexity for simple operations
+- **"Add error handling"** → Often over-engineering for simple tools
+- **"Use design patterns"** → Usually violates "simplicity over cleverness"
 
-## Performance Considerations
-- **Move Semantics**: Use move instead of copy where possible
-- **Reserve Capacity**: Reserve vector capacity when known
-- **Efficient Loops**: Use range-based loops and algorithms
-- **Timeout Mechanisms**: Prevent resource waste from infinite loops
+## WHEN TO ACCEPT AUDITOR FEEDBACK:
+- **Real violations** of anti-kruft principles (function doing 5+ things)
+- **Performance issues** that impact the core functionality
+- **Unnecessary dependencies** or complexity
+- **Global state** that could be local
+- **Over-validation** of simple inputs
 
-## Future Maintenance
-- **Keep Security First**: Never compromise security for convenience
-- **Maintain RAII**: Continue using RAII for all resources
-- **Exception Safety**: Keep destructors noexcept
-- **Input Validation**: Always validate external inputs
-- **Documentation**: Keep this file updated with architectural changes
+## DEVELOPER EXAMPLES:
 
-## AI Assistant Instructions
-When making changes to this codebase:
-1. **Read this file first** - Understand the project's architecture and constraints
-2. **Maintain security** - Never introduce vulnerabilities
-3. **Follow patterns** - Use established RAII and exception patterns
-4. **Validate inputs** - Always validate external data
-5. **Test thoroughly** - Ensure builds and basic functionality work
-6. **Update documentation** - Keep this file current with changes
+**REJECT these auditor suggestions:**
+- "Create a ConfigManager class" → Unnecessary abstraction for simple JSON operations
+- "Extract this into a helper function" → Single-line operations should be inline
+- "Add input validation" → Over-engineering for simple command-line tools
+- "Use dependency injection" → Enterprise patterns for simple tools
+- "Create a MonitorManager class" → More abstraction for direct system calls
 
-Remember: This project has been security-audited to 9.9/10. Maintain that standard!
+**ACCEPT these auditor suggestions:**
+- "This function does 5 different things" → Real violation of single responsibility
+- "Remove this global variable" → Real violation of encapsulation
+- "This is premature optimization" → Real violation of performance principles
+- "This namespace only has helper functions" → Real violation of simplicity
+- "This is over-engineering" → Real violation of core principles
+
+**Remember: The auditor's job is to find violations. Your job is to fix them with the SIMPLEST solution, not the most "elegant" one.**
