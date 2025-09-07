@@ -44,14 +44,99 @@ The program follows XDG Base Directory Specification and searches for waybar con
 - **Resource Management**: RAII patterns prevent resource leaks
 - **Exception Safety**: Proper cleanup even when exceptions occur 
 
-### Build
-In order to build it:
+### Installation
+
+#### **Method 1: Build from Source**
 ```bash
+# Clone the repository
+git clone https://github.com/Trahloc/autowaybar-ai.git
+cd autowaybar-ai
+
+# Build with xmake
 xmake f -m release && xmake
+
+# Install manually
+sudo cp build/linux/x86_64/release/autowaybar /usr/local/bin/
+# Or install to user directory (no sudo needed)
+mkdir -p ~/.local/bin
+cp build/linux/x86_64/release/autowaybar ~/.local/bin/
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ```
-or manually:
+
+#### **Method 2: Manual Compilation**
 ```bash
+# Clone and build manually
+git clone https://github.com/Trahloc/autowaybar-ai.git
+cd autowaybar-ai
 g++ -std=c++20 src/*.cpp src/*.hpp -o autowaybar -lfmt -ljsoncpp -O3 -march=native
+sudo cp autowaybar /usr/local/bin/
+```
+
+#### **Method 3: Arch Linux Package (PKGBUILD)**
+```bash
+# Clone the repository
+git clone https://github.com/Trahloc/autowaybar-ai.git
+cd autowaybar-ai
+
+# Build and install package
+makepkg -s
+sudo pacman -U autowaybar-ai-*.pkg.tar.zst
+
+# Or install with yay (if available in AUR)
+yay -S autowaybar-ai
+```
+
+#### **Method 4: System Package Manager**
+```bash
+# Install dependencies first
+sudo pacman -S waybar hyprland fmt jsoncpp xmake gcc
+
+# Then follow Method 1 or 2 above
+```
+
+#### **Verification**
+After installation, verify it works:
+```bash
+# Check if autowaybar is installed and working
+autowaybar --help
+
+# Test with verbose mode (requires Hyprland running)
+autowaybar -m all -v
+```
+
+#### **Troubleshooting**
+Common issues and solutions:
+
+**"autowaybar: command not found"**
+```bash
+# Make sure it's in your PATH
+which autowaybar
+# If not found, add to PATH or reinstall
+echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**"Waybar is not running"**
+```bash
+# Start waybar first
+waybar -c ~/.config/waybar/config &
+# Then run autowaybar
+autowaybar -m all
+```
+
+**"This tool ONLY supports Hyprland"**
+```bash
+# Make sure you're running Hyprland, not other compositors
+echo $XDG_SESSION_DESKTOP
+# Should show "Hyprland"
+```
+
+**Build errors**
+```bash
+# Install missing dependencies
+sudo pacman -S fmt jsoncpp xmake gcc
+# Or on Ubuntu/Debian
+sudo apt install libfmt-dev libjsoncpp-dev build-essential
 ```
 
 ### Development
