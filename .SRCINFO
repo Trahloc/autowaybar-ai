@@ -1,0 +1,19 @@
+pkgbase = autowaybar-ai
+	pkgdesc = AI-enhanced version of autowaybar - program that hides waybar based on cursor position for Hyprland
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/Trahloc/autowaybar-ai
+	arch = x86_64
+	license = MIT
+	makedepends = xmake
+	makedepends = gcc
+	depends = waybar
+	depends = hyprland
+	depends = fmt
+	depends = jsoncpp
+	provides = autowaybar
+	conflicts = autowaybar
+	source = autowaybar-ai-1.0.0.tar.gz::https://github.com/Trahloc/autowaybar-ai/archive/refs/tags/v1.0.0.tar.gz
+	sha256sums = SKIP
+
+pkgname = autowaybar-ai

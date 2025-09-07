@@ -1,2 +1,29 @@
+# Build artifacts
 /.xmake
 /build
+/pkg
+
+# Package files
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.pkg.tar.gz
+*.tar.gz
+*.tar.xz
+
+# Compiled binaries
+autowaybar
+autowaybar-ai
+
+# IDE files
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
