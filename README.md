@@ -46,68 +46,50 @@ The program follows XDG Base Directory Specification and searches for waybar con
 
 ### Installation
 
-#### **Method 1: Easy Build Script (Recommended)**
+#### **Quick Start (Recommended)**
 ```bash
-# Clone the repository
+# Clone and build
 git clone https://github.com/Trahloc/autowaybar-ai.git
 cd autowaybar-ai
 
+# Build and install
+./build.sh build && ./build.sh install
+```
+
+#### **Build Script Options**
+```bash
 # Check dependencies
 ./build.sh deps
 
-# Build and install in one command
-./build.sh build && ./build.sh install
+# Build release version (default)
+./build.sh build
 
-# Or install to system (requires sudo)
-./build.sh build && ./build.sh install system
+# Build debug version
+./build.sh build debug
+
+# Install to user directory (~/.local/bin)
+./build.sh install
+
+# Install to system (/usr/local/bin) - requires sudo
+./build.sh install system
+
+# Test the binary
+./build.sh test
+
+# Clean build artifacts
+./build.sh clean
+
+# Show all options
+./build.sh help
 ```
 
-#### **Method 2: Manual Build**
+#### **Arch Linux Package**
 ```bash
-# Clone the repository
-git clone https://github.com/Trahloc/autowaybar-ai.git
-cd autowaybar-ai
-
-# Build with xmake
-xmake f -m release && xmake
-
-# Install manually
-sudo cp build/linux/x86_64/release/autowaybar /usr/local/bin/
-# Or install to user directory (no sudo needed)
-mkdir -p ~/.local/bin
-cp build/linux/x86_64/release/autowaybar ~/.local/bin/
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-```
-
-#### **Method 3: Manual Compilation**
-```bash
-# Clone and build manually
-git clone https://github.com/Trahloc/autowaybar-ai.git
-cd autowaybar-ai
-g++ -std=c++20 src/*.cpp src/*.hpp -o autowaybar -lfmt -ljsoncpp -O3 -march=native
-sudo cp autowaybar /usr/local/bin/
-```
-
-#### **Method 4: Arch Linux Package (PKGBUILD)**
-```bash
-# Clone the repository
-git clone https://github.com/Trahloc/autowaybar-ai.git
-cd autowaybar-ai
-
 # Build and install package
+git clone https://github.com/Trahloc/autowaybar-ai.git
+cd autowaybar-ai
 makepkg -s
 sudo pacman -U autowaybar-ai-*.pkg.tar.zst
-
-# Or install with yay (if available in AUR)
-yay -S autowaybar-ai
-```
-
-#### **Method 5: System Package Manager**
-```bash
-# Install dependencies first
-sudo pacman -S waybar hyprland fmt jsoncpp xmake gcc
-
-# Then follow Method 1 or 2 above
 ```
 
 ### Build Script Features
@@ -124,22 +106,34 @@ The included `build.sh` script provides:
 #### **Verification**
 After installation, verify it works:
 ```bash
-# Check if autowaybar is installed and working
-autowaybar --help
+# Test the binary
+./build.sh test
 
-# Test with verbose mode (requires Hyprland running)
-autowaybar -m all -v
+# Or manually check
+autowaybar --help
 ```
 
 #### **Troubleshooting**
 Common issues and solutions:
 
+**Build script fails**
+```bash
+# Check dependencies
+./build.sh deps
+
+# Install missing dependencies
+sudo pacman -S fmt jsoncpp xmake gcc
+# Or on Ubuntu/Debian
+sudo apt install libfmt-dev libjsoncpp-dev build-essential
+```
+
 **"autowaybar: command not found"**
 ```bash
-# Make sure it's in your PATH
-which autowaybar
-# If not found, add to PATH or reinstall
-echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.bashrc
+# Reinstall to user directory
+./build.sh install
+
+# Or add to PATH
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -153,17 +147,9 @@ autowaybar -m all
 
 **"This tool ONLY supports Hyprland"**
 ```bash
-# Make sure you're running Hyprland, not other compositors
+# Make sure you're running Hyprland
 echo $XDG_SESSION_DESKTOP
 # Should show "Hyprland"
-```
-
-**Build errors**
-```bash
-# Install missing dependencies
-sudo pacman -S fmt jsoncpp xmake gcc
-# Or on Ubuntu/Debian
-sudo apt install libfmt-dev libjsoncpp-dev build-essential
 ```
 
 ### Development
