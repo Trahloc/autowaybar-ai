@@ -7,11 +7,12 @@ This fork has been refactored to follow strict anti-kruft engineering principles
 
 > **Note**: This is a fork of the original project. Please consider supporting the original author [@Direwolfesp](https://github.com/Direwolfesp) by starring their repository.
 
-> [!Warning]
-> In order to work, it must follow these constraints: exactly 1 Waybar process must be running with only 1 Bar. And Waybar **must** have been launched providing **full paths** for its config file. (ie. `waybar -c ~/.config/waybar/config`)
+> [!Note]
+> autowaybar automatically manages the waybar process - it will start waybar if not running and restart it if it crashes. Waybar must be configured to use **full paths** for its config file. (ie. `waybar -c ~/.config/waybar/config`)
 
 ### Features
 - **Auto-hide waybar**: Hides waybar when mouse moves away from top of screen
+- **Process management**: Automatically starts waybar if not running, restarts if it crashes
 - **Multiple modes**: Hide all monitors, focused monitor only, or specific monitors
 - **Mouse activation**: Shows waybar when mouse reaches top of screen
 - **Workspace awareness**: Temporarily shows waybar on workspace changes
@@ -135,10 +136,9 @@ source ~/.bashrc
 
 **"Waybar is not running"**
 ```bash
-# Start waybar first
-waybar -c ~/.config/waybar/config &
-# Then run autowaybar
+# autowaybar will automatically start waybar for you
 autowaybar -m all
+# No need to manually start waybar first
 ```
 
 **"This tool ONLY supports Hyprland"**
