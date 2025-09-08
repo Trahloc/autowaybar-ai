@@ -12,29 +12,36 @@
 #include <cstring>
 #include <chrono>
 #include <fstream>
+#include <sstream>
+#include <unistd.h>
+#include <sys/wait.h>
 #include "utils.hpp"
 #include "Hyprland.hpp"
 #include <filesystem>
 
 namespace fs = std::filesystem;
 
-// No more global variables needed
+// Global interrupt flag for signal handlers
+static std::atomic<bool> g_interrupt_request{false};
+
+// Global workspace tracking
+static std::atomic<int> g_current_workspace{1};
 
 // Auxiliary functions
 
 auto register_signals(const Waybar* /* instance */) -> void {
-    // Use a simple approach - just set up basic signal handling
-    // The interrupt request will be checked in the main loops
+    // Set up signal handlers that set the global interrupt flag
     std::signal(SIGINT, [](int) { 
         log_message(WARN, "Interruption detected, saving resources...\n");
-        // Note: We can't access instance here, but the main loops will check
-        // the interrupt request periodically, so this is sufficient
+        g_interrupt_request.store(true, std::memory_order_release);
     });
     std::signal(SIGTERM, [](int) { 
         log_message(WARN, "Interruption detected, saving resources...\n");
+        g_interrupt_request.store(true, std::memory_order_release);
     });
     std::signal(SIGHUP, [](int) { 
         log_message(WARN, "Interruption detected, saving resources...\n");
+        g_interrupt_request.store(true, std::memory_order_release);
     });
 }
 
@@ -63,6 +70,64 @@ auto Waybar::requestApplyVisibleMonitors(bool need_reload) -> void {
 }
 
  
+auto Waybar::checkWaybarCrashLimit() -> bool {
+    auto now = std::chrono::steady_clock::now();
+    
+    // Reset crash count if window has expired
+    if (now - m_crash_window_start > Constants::WAYBAR_CRASH_WINDOW) {
+        m_waybar_crash_count = 0;
+        m_crash_window_start = now;
+    }
+    
+    // Check if we've exceeded the crash limit
+    if (m_waybar_crash_count >= Constants::MAX_WAYBAR_CRASHES) {
+        return true; // Too many crashes
+    }
+    
+    return false; // Within limits
+}
+
+auto Waybar::restartWaybar() -> pid_t {
+    log_message(INFO, "Attempting to restart waybar...\n");
+    
+    // Check crash limit before attempting restart
+    if (checkWaybarCrashLimit()) {
+        throw std::runtime_error("Waybar is unstable - crashed 3 times in 30 seconds. Giving up.");
+    }
+    
+    // Increment crash count and set window start if this is the first crash
+    if (m_waybar_crash_count == 0) {
+        m_crash_window_start = std::chrono::steady_clock::now();
+    }
+    m_waybar_crash_count++;
+    
+    // Try to start waybar
+    pid_t child_pid = fork();
+    if (child_pid == 0) {
+        // Child process - exec waybar
+        execlp("waybar", "waybar", nullptr);
+        // If execlp fails, exit with error
+        std::exit(1);
+    } else if (child_pid > 0) {
+        // Parent process - wait a moment for waybar to start
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        
+        // Check if waybar is now running
+        std::string pid_str = execute_command("pidof waybar");
+        if (!pid_str.empty()) {
+            pid_str.erase(pid_str.find_last_not_of(" \t\n\r") + 1);
+            pid_t actual_pid = std::stoi(pid_str);
+            log_message(INFO, "Waybar restarted successfully with PID: {}\n", actual_pid);
+            return actual_pid;
+        } else {
+            throw std::runtime_error("Failed to restart waybar - process not found after startup");
+        }
+    } else {
+        // Fork failed
+        throw std::runtime_error("Failed to fork process for waybar restart: " + std::string(strerror(errno)));
+    }
+}
+
 auto Waybar::initPid() const -> pid_t {
     std::string pid_str = execute_command("pidof waybar");
     if (pid_str.empty()) {
@@ -75,12 +140,24 @@ auto Waybar::initPid() const -> pid_t {
     return pid;
 }
 
+auto Waybar::initPidOrRestart() -> pid_t {
+    std::string pid_str = execute_command("pidof waybar");
+    if (pid_str.empty()) {
+        log_message(INFO, "Waybar not running, attempting to restart...\n");
+        return restartWaybar();
+    }
+    
+    pid_str.erase(pid_str.find_last_not_of(" \t\n\r") + 1);
+    pid_t pid = std::stoi(pid_str);
+    
+    return pid;
+}
+
 // Parse mode argument
 auto Waybar::parseMode(const std::string &mode) -> BarMode {
+    // Default to "all" mode if no mode specified
     if (mode.empty()) {
-        log_message(CRIT, "-m / --mode is mandatory.\n");
-        printHelp();
-        throw std::invalid_argument("Mode parameter is mandatory");
+        return BarMode::HIDE_ALL;
     }
 
     if (mode == "all") return BarMode::HIDE_ALL;
@@ -96,11 +173,11 @@ auto Waybar::parseMode(const std::string &mode) -> BarMode {
 }
 
 
-Waybar::Waybar(const std::string &mode, int threshold, bool verbose, const std::string &config_dir)
-    : m_waybar_pid(initPid()),
+Waybar::Waybar(const std::string &mode, int threshold, int verbose, const std::string &config_dir)
+    : m_waybar_pid(initPidOrRestart()),
       m_original_mode(parseMode(mode)),
       m_is_console(isatty(fileno(stdin))),
-      m_is_verbose(verbose),
+      m_verbose_level(verbose),
       m_bar_threshold(threshold),
       m_config_dir(config_dir) {
     initialize();
@@ -108,13 +185,29 @@ Waybar::Waybar(const std::string &mode, int threshold, bool verbose, const std::
 
 auto Waybar::initialize() -> void {
     m_outputs = getMonitorsInfo();
-    initConfig();
+    
+    // Initialize global workspace tracking
+    g_current_workspace.store(getCurrentWorkspace(), std::memory_order_release);
+    
+    // Initialize waybar state - assume it starts visible
+    m_waybar_visible = true;
+    
+    // Initialize mouse activation tracking
+    m_mouse_in_activation_zone = false;
+    
+    // Only initialize config for modes that need it (focused and custom modes)
+    if (m_original_mode == BarMode::HIDE_FOCUSED || m_original_mode == BarMode::HIDE_MON) {
+        initConfig();
+    }
 }
 
 Waybar::~Waybar() {
     // Ensure proper cleanup on destruction
     try {
-        restoreOriginal();
+        // Only restore config if it was loaded (focused and custom modes)
+        if (m_original_mode == BarMode::HIDE_FOCUSED || m_original_mode == BarMode::HIDE_MON) {
+            restoreOriginal();
+        }
         reloadPid();
     } catch (const std::exception& e) {
         log_message(ERR, "Error during cleanup: {}", e.what());
@@ -149,17 +242,47 @@ auto Waybar::runCustomMode() -> void {
 }
 
 auto Waybar::validateMonitorExists() -> void {
-    bool exist = std::any_of(m_outputs.cbegin(), m_outputs.cend(), [this](monitor_info_t m) {
-        return m.name == m_hidemon;
-    });
-
-    if (!exist) {
-        log_message(CRIT, "Monitor '{}' provided, was not found.\n", m_hidemon);
-        log_message(NONE, "Consider using any of this: ");
+    // Split comma-separated monitor names
+    std::vector<std::string> monitor_names;
+    std::stringstream ss(m_hidemon);
+    std::string monitor;
+    
+    while (std::getline(ss, monitor, ',')) {
+        // Trim whitespace
+        monitor.erase(0, monitor.find_first_not_of(" \t"));
+        monitor.erase(monitor.find_last_not_of(" \t") + 1);
+        if (!monitor.empty()) {
+            monitor_names.push_back(monitor);
+        }
+    }
+    
+    if (monitor_names.empty()) {
+        log_message(CRIT, "No monitors specified after 'mon:'\n");
+        throw std::invalid_argument("No monitors specified");
+    }
+    
+    // Check if all specified monitors exist
+    std::vector<std::string> missing_monitors;
+    for (const auto& monitor_name : monitor_names) {
+        bool exists = std::any_of(m_outputs.cbegin(), m_outputs.cend(), [&monitor_name](const monitor_info_t& m) {
+            return m.name == monitor_name;
+        });
+        if (!exists) {
+            missing_monitors.push_back(monitor_name);
+        }
+    }
+    
+    if (!missing_monitors.empty()) {
+        log_message(CRIT, "Monitor(s) not found: ");
+        for (const auto& missing : missing_monitors) {
+            log_message(NONE, "'{}' ", missing);
+        }
+        log_message(NONE, "\n");
+        log_message(NONE, "Available monitors: ");
         for (const auto& m : m_outputs)
             log_message(NONE, "{} ", m.name);
         log_message(NONE, "\n");
-        throw std::invalid_argument("Monitor '" + m_hidemon + "' not found");
+        throw std::invalid_argument("Monitor(s) not found");
     }
 }
 
@@ -176,11 +299,32 @@ auto Waybar::hideCustom() -> void {
 }
 
 auto Waybar::setupCustomMode() -> void {
-    // filling output with all monitors except the target
+    // Parse comma-separated monitor names
+    std::vector<std::string> target_monitors;
+    std::stringstream ss(m_hidemon);
+    std::string monitor;
+    
+    while (std::getline(ss, monitor, ',')) {
+        // Trim whitespace
+        monitor.erase(0, monitor.find_first_not_of(" \t"));
+        monitor.erase(monitor.find_last_not_of(" \t") + 1);
+        if (!monitor.empty()) {
+            target_monitors.push_back(monitor);
+        }
+    }
+    
+    // filling output with all monitors except the target monitors
     Json::Value val(Json::arrayValue);
     for (auto& mon : m_outputs) {
-        if (mon.name != m_hidemon) val.append(mon.name);
-        else mon.hidden = true;
+        bool is_target = std::any_of(target_monitors.begin(), target_monitors.end(), [&mon](const std::string& target) {
+            return mon.name == target;
+        });
+        
+        if (!is_target) {
+            val.append(mon.name);
+        } else {
+            mon.hidden = true;
+        }
     }
     setOutputs(val);
     reloadPid();
@@ -189,11 +333,14 @@ auto Waybar::setupCustomMode() -> void {
 
 auto Waybar::runCustomModeLoop() -> void {
     auto [mouse_x, mouse_y] = initializeCustomModeMouse();
-    auto &mon = getMonitor(m_hidemon); 
-    const int local_bar_threshold = mon.y_coord + m_bar_threshold;
 
-    while (!m_interrupt_request.load(std::memory_order_acquire)) {
-        bool need_reload = processCustomModeIteration(mon, mouse_x, mouse_y, local_bar_threshold);
+    while (!g_interrupt_request.load(std::memory_order_acquire)) {
+        // Check for workspace changes
+        if (checkWorkspaceChange()) {
+            handleWorkspaceChange();
+        }
+        
+        bool need_reload = processCustomModeIteration(mouse_x, mouse_y);
         requestApplyVisibleMonitors(need_reload);
         std::this_thread::sleep_for(Constants::POLLING_INTERVAL);
         std::tie(mouse_x, mouse_y) = getCursorPos();
@@ -204,22 +351,42 @@ auto Waybar::initializeCustomModeMouse() -> std::pair<int, int> {
     return getCursorPos();
 }
 
-auto Waybar::processCustomModeIteration(monitor_info_t& mon, int mouse_x, int mouse_y, int local_bar_threshold) -> bool {
+auto Waybar::processCustomModeIteration(int mouse_x, int mouse_y) -> bool {
     bool need_reload = false;
-    const bool in_target_mon = is_cursor_in_monitor(mon, mouse_x, mouse_y);
+    
+    // Parse comma-separated monitor names
+    std::vector<std::string> target_monitors;
+    std::stringstream ss(m_hidemon);
+    std::string monitor;
+    
+    while (std::getline(ss, monitor, ',')) {
+        // Trim whitespace
+        monitor.erase(0, monitor.find_first_not_of(" \t"));
+        monitor.erase(monitor.find_last_not_of(" \t") + 1);
+        if (!monitor.empty()) {
+            target_monitors.push_back(monitor);
+        }
+    }
+    
+    // Process each target monitor
+    for (const auto& target_monitor : target_monitors) {
+        auto& mon = getMonitor(target_monitor);
+        const bool in_target_mon = is_cursor_in_monitor(mon, mouse_x, mouse_y);
+        const int local_bar_threshold = mon.y_coord + m_bar_threshold;
 
-    if (in_target_mon && !mon.hidden) {
-        need_reload = handleMonitorThreshold(mon, mouse_x, mouse_y, local_bar_threshold);
-    } 
-    else if (in_target_mon && mon.hidden && mouse_y < mon.y_coord + Constants::MOUSE_ACTIVATION_ZONE) {
-        need_reload = showHiddenMonitor(mon);
+        if (in_target_mon && !mon.hidden) {
+            need_reload |= handleMonitorThreshold(mon, mouse_x, mouse_y, local_bar_threshold);
+        } 
+        else if (in_target_mon && mon.hidden && mouse_y < mon.y_coord + Constants::MOUSE_ACTIVATION_ZONE) {
+            need_reload |= showHiddenMonitor(mon);
+        }
     }
 
     return need_reload;
 }
 
 auto Waybar::showHiddenMonitor(monitor_info_t& mon) -> bool {
-    log_message(INFO, "Mon: {} needs to be shown.\n", mon.name);
+    log_message(LOG, "Mon: {} needs to be shown.\n", mon.name);
     mon.hidden = false;
     return true;
 }
@@ -233,18 +400,18 @@ auto Waybar::cleanupCustomMode() -> void {
 
 auto Waybar::handleMonitorThreshold(monitor_info_t& mon, int& mouse_x, int& mouse_y, int local_bar_threshold) -> bool {
     if (mouse_y > local_bar_threshold) {
-        log_message(INFO, "Mon: {} needs to be hidden.\n", mon.name);
+        log_message(LOG, "Mon: {} needs to be hidden.\n", mon.name);
         mon.hidden = true;
         return true;
     }
     
     // Keep showing while inside threshold
-    while (mouse_y <= local_bar_threshold && !m_interrupt_request.load(std::memory_order_acquire)) {
+    while (mouse_y <= local_bar_threshold && !g_interrupt_request.load(std::memory_order_acquire)) {
         std::this_thread::sleep_for(Constants::POLLING_INTERVAL);
         std::tie(mouse_x, mouse_y) = getCursorPos();
     }
     
-    log_message(INFO, "Mon: {} needs to be hidden.\n", mon.name);
+    log_message(LOG, "Mon: {} needs to be hidden.\n", mon.name);
     mon.hidden = true;
     return true;
 }
@@ -354,13 +521,13 @@ auto Waybar::restoreOriginal() -> void {
     writer->write(m_backup, &file);
 }
 
-auto Waybar::hideAllMonitors(bool is_visible) const -> void {
+auto Waybar::hideAllMonitors(bool is_visible) -> void {
     setupAllMonitorsMode(is_visible);
     runAllMonitorsLoop(is_visible);
     cleanupAllMonitorsMode();
 }
 
-auto Waybar::setupAllMonitorsMode(bool& is_visible) const -> void {
+auto Waybar::setupAllMonitorsMode(bool& is_visible) -> void {
     if (is_visible) {
         hideWaybar();
         is_visible = false;
@@ -368,52 +535,70 @@ auto Waybar::setupAllMonitorsMode(bool& is_visible) const -> void {
     register_signals(this);
 }
 
-auto Waybar::cleanupAllMonitorsMode() const -> void {
+auto Waybar::cleanupAllMonitorsMode() -> void {
     reloadPid();
 }
 
-auto Waybar::runAllMonitorsLoop(bool is_visible) const -> void {
-    while (!m_interrupt_request.load(std::memory_order_acquire)) {
+auto Waybar::runAllMonitorsLoop(bool is_visible) -> void {
+    while (!g_interrupt_request.load(std::memory_order_acquire)) {
         auto [root_x, root_y] = getCursorPos();
-        if (m_is_console and m_is_verbose)
-            log_message(INFO, "Mouse at position ({},{})\n", root_x, root_y);
+        if (m_is_console and m_verbose_level >= 2)
+            log_message(TRACE, "Mouse at position ({},{})\n", root_x, root_y);
+        
+        // Check for workspace changes
+        if (checkWorkspaceChange()) {
+            handleWorkspaceChange();
+        }
         
         is_visible = processAllMonitorsVisibility(root_x, root_y, is_visible);
         std::this_thread::sleep_for(Constants::POLLING_INTERVAL);
     }
 }
 
-auto Waybar::processAllMonitorsVisibility(int /* root_x */, int root_y, bool is_visible) const -> bool {
+auto Waybar::processAllMonitorsVisibility(int /* root_x */, int root_y, bool is_visible) -> bool {
     for (auto &mon : m_outputs) {
         is_visible = processMonitorVisibility(mon, root_y, is_visible);
     }
     return is_visible;
 }
 
-auto Waybar::processMonitorVisibility(const monitor_info_t& mon, int root_y, bool is_visible) const -> bool {
+auto Waybar::processMonitorVisibility(const monitor_info_t& mon, int root_y, bool is_visible) -> bool {
     const int local_bar_threshold = mon.y_coord + m_bar_threshold;
     
     if (!is_visible && shouldShowWaybar(mon, root_y)) {
-        return showWaybarAndKeepOpen(mon, local_bar_threshold);
+        // Mouse is in activation zone - start or continue tracking
+        if (!m_mouse_in_activation_zone) {
+            m_mouse_in_activation_zone = true;
+            m_mouse_activation_start = std::chrono::steady_clock::now();
+        }
+        
+        // Check if mouse has been in activation zone long enough
+        if (checkMouseActivationDelay()) {
+            return showWaybarAndKeepOpen(mon, local_bar_threshold);
+        }
     }
     else if (is_visible && shouldHideWaybar(mon, root_y, local_bar_threshold)) {
         return hideWaybarAndReturnFalse();
+    }
+    else {
+        // Mouse is not in activation zone - reset tracking
+        m_mouse_in_activation_zone = false;
     }
     
     return is_visible;
 }
 
-auto Waybar::showWaybarAndKeepOpen(const monitor_info_t& /* mon */, int local_bar_threshold) const -> bool {
+auto Waybar::showWaybarAndKeepOpen(const monitor_info_t& /* mon */, int local_bar_threshold) -> bool {
     showWaybar();
     auto [root_x, root_y] = getCursorPos();
-    while (root_y < local_bar_threshold && !m_interrupt_request.load(std::memory_order_acquire)) {
+    while (root_y < local_bar_threshold && !g_interrupt_request.load(std::memory_order_acquire)) {
         std::this_thread::sleep_for(Constants::POLLING_INTERVAL);
         std::tie(root_x, root_y) = getCursorPos();
     }
     return true;
 }
 
-auto Waybar::hideWaybarAndReturnFalse() const -> bool {
+auto Waybar::hideWaybarAndReturnFalse() -> bool {
     hideWaybar();
     return false;
 }
@@ -426,26 +611,73 @@ auto Waybar::shouldHideWaybar(const monitor_info_t& mon, int root_y, int thresho
     return root_y < mon.y_coord + mon.height && root_y > threshold;
 }
 
-auto Waybar::showWaybar() const -> void {
-    log_message(INFO, "Opening it. \n");
-    if (kill(m_waybar_pid, SIGUSR1) == -1) {
-        throw std::runtime_error("Failed to send SIGUSR1 to waybar process " + std::to_string(m_waybar_pid) + ": " + strerror(errno));
+auto Waybar::checkMouseActivationDelay() -> bool {
+    if (!m_mouse_in_activation_zone) {
+        return false;
+    }
+    
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = now - m_mouse_activation_start;
+    
+    return elapsed >= Constants::MOUSE_ACTIVATION_DELAY;
+}
+
+auto Waybar::showWaybar() -> void {
+    if (!m_waybar_visible) {
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Opening it. \n");
+        }
+        if (kill(m_waybar_pid, SIGUSR1) == -1) {
+            if (errno == ESRCH) {
+                // Process doesn't exist, try to restart waybar
+                log_message(WARN, "Waybar process {} not found, attempting restart...\n", m_waybar_pid);
+                m_waybar_pid = restartWaybar();
+                // Try again after restart
+                if (kill(m_waybar_pid, SIGUSR1) == -1) {
+                    throw std::runtime_error("Failed to send SIGUSR1 to restarted waybar process " + std::to_string(m_waybar_pid) + ": " + strerror(errno));
+                }
+            } else {
+                throw std::runtime_error("Failed to send SIGUSR1 to waybar process " + std::to_string(m_waybar_pid) + ": " + strerror(errno));
+            }
+        }
+        m_waybar_visible = true;
     }
 }
 
-auto Waybar::hideWaybar() const -> void {
-    log_message(INFO, "Hiding it. \n");
-    if (kill(m_waybar_pid, SIGUSR1) == -1) {
-        throw std::runtime_error("Failed to send SIGUSR1 to waybar process " + std::to_string(m_waybar_pid) + ": " + strerror(errno));
+auto Waybar::hideWaybar() -> void {
+    if (m_waybar_visible) {
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Hiding it. \n");
+        }
+        if (kill(m_waybar_pid, SIGUSR1) == -1) {
+            if (errno == ESRCH) {
+                // Process doesn't exist, try to restart waybar
+                log_message(WARN, "Waybar process {} not found, attempting restart...\n", m_waybar_pid);
+                m_waybar_pid = restartWaybar();
+                // Try again after restart
+                if (kill(m_waybar_pid, SIGUSR1) == -1) {
+                    throw std::runtime_error("Failed to send SIGUSR1 to restarted waybar process " + std::to_string(m_waybar_pid) + ": " + strerror(errno));
+                }
+            } else {
+                throw std::runtime_error("Failed to send SIGUSR1 to waybar process " + std::to_string(m_waybar_pid) + ": " + strerror(errno));
+            }
+        }
+        m_waybar_visible = false;
     }
 }
 
 
-auto Waybar::reloadPid() const -> void {
+auto Waybar::reloadPid() -> void {
     log_message(INFO, "Reloading PID: {}\n", m_waybar_pid);
     
     if (kill(m_waybar_pid, SIGUSR2) == -1) {
-        throw std::runtime_error("Failed to send SIGUSR2 to waybar process " + std::to_string(m_waybar_pid) + ": " + strerror(errno));
+        if (errno == ESRCH) {
+            // Process doesn't exist, try to restart waybar
+            log_message(WARN, "Waybar process {} not found, attempting restart...\n", m_waybar_pid);
+            m_waybar_pid = restartWaybar();
+        } else {
+            throw std::runtime_error("Failed to send SIGUSR2 to waybar process " + std::to_string(m_waybar_pid) + ": " + strerror(errno));
+        }
     }
 }
 
@@ -484,7 +716,12 @@ auto Waybar::validateFocusedModeConfig() -> void {
 auto Waybar::runFocusedModeLoop() -> void {
     auto [mouse_x, mouse_y] = initializeMousePosition();
 
-    while (!m_interrupt_request.load(std::memory_order_acquire)) {
+    while (!g_interrupt_request.load(std::memory_order_acquire)) {
+        // Check for workspace changes
+        if (checkWorkspaceChange()) {
+            handleWorkspaceChange();
+        }
+        
         bool need_reload = processFocusedMonitors(mouse_x, mouse_y);
         applyChanges(need_reload);
         sleepAndUpdateMouse(mouse_x, mouse_y);
@@ -502,8 +739,8 @@ auto Waybar::applyChanges(bool need_reload) -> void {
 auto Waybar::sleepAndUpdateMouse(int& mouse_x, int& mouse_y) -> void {
     std::this_thread::sleep_for(Constants::POLLING_INTERVAL);
     std::tie(mouse_x, mouse_y) = getCursorPos();
-    if (m_is_console and m_is_verbose)
-        log_message(INFO, "Mouse at position ({},{})\n", mouse_x, mouse_y);
+    if (m_is_console and m_verbose_level >= 2)
+        log_message(TRACE, "Mouse at position ({},{})\n", mouse_x, mouse_y);
 }
 
 auto Waybar::processFocusedMonitors(int mouse_x, int mouse_y) -> bool {
@@ -537,7 +774,7 @@ auto Waybar::handleVisibleMonitor(monitor_info_t& mon, int mouse_x, int mouse_y)
 
 auto Waybar::handleHiddenMonitor(monitor_info_t& mon, int /* mouse_x */, int mouse_y) -> bool {
     if (mouse_y < mon.y_coord + Constants::MOUSE_ACTIVATION_ZONE) {
-        log_message(INFO, "Mon: {} needs to be shown.\n", mon.name);
+        log_message(LOG, "Mon: {} needs to be shown.\n", mon.name);
         mon.hidden = false;
         return true;
     }
@@ -559,6 +796,67 @@ auto Waybar::getMonitor(const std::string &name) -> monitor_info_t& {
     }
 
     throw std::invalid_argument("Monitor '" + name + "' not found");
+}
+
+// Workspace monitoring functions
+auto Waybar::getCurrentWorkspace() const -> int {
+    std::string workspace_info = execute_command("hyprctl activeworkspace");
+    if (workspace_info.empty()) {
+        return 1; // fallback to workspace 1
+    }
+    
+    // Parse workspace ID from output like "workspace ID 5 (5) on monitor HDMI-A-1:"
+    std::istringstream iss(workspace_info);
+    std::string token;
+    while (iss >> token) {
+        if (token == "ID") {
+            iss >> token; // should be the workspace number
+            try {
+                return std::stoi(token);
+            } catch (const std::exception&) {
+                return 1; // fallback
+            }
+        }
+    }
+    
+    return 1; // fallback
+}
+
+auto Waybar::checkWorkspaceChange() const -> bool {
+    int current_workspace = getCurrentWorkspace();
+    int previous_workspace = g_current_workspace.load(std::memory_order_acquire);
+    
+    if (current_workspace != previous_workspace) {
+        g_current_workspace.store(current_workspace, std::memory_order_release);
+        return true; // workspace changed
+    }
+    return false; // no change
+}
+
+auto Waybar::handleWorkspaceChange() -> void {
+    int current_workspace = g_current_workspace.load(std::memory_order_acquire);
+    log_message(LOG, "Workspace changed to workspace {}\n", current_workspace);
+    showWaybarTemporarily();
+}
+
+auto Waybar::showWaybarTemporarily() -> void {
+    log_message(LOG, "Showing waybar temporarily for {} seconds after workspace change\n", Constants::WORKSPACE_SHOW_DURATION.count());
+    
+    // Show waybar
+    showWaybar();
+    
+    // Wait for the specified duration
+    auto start_time = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - start_time < Constants::WORKSPACE_SHOW_DURATION) {
+        if (g_interrupt_request.load(std::memory_order_acquire)) {
+            break; // exit early if interrupted
+        }
+        std::this_thread::sleep_for(100ms);
+    }
+    
+    // Hide waybar after duration
+    hideWaybar();
+    log_message(LOG, "Waybar hidden after workspace change\n");
 }
 
 

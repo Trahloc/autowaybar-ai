@@ -20,13 +20,17 @@ inline auto printHelp() -> void;
 // Configuration constants
 namespace Constants {
     constexpr int DEFAULT_BAR_THRESHOLD = 50;
-    constexpr int MOUSE_ACTIVATION_ZONE = 7;  // pixels from top of monitor
+    constexpr int MOUSE_ACTIVATION_ZONE = 1;  // pixels from top of monitor
     constexpr auto POLLING_INTERVAL = 80ms;   // mouse position polling frequency
     constexpr int MIN_THRESHOLD = 1;          // minimum threshold value
     constexpr int MAX_THRESHOLD = 1000;       // maximum threshold value
     constexpr int MONITOR_MODE_PREFIX_LENGTH = 4;  // "mon:" prefix length
     constexpr int SINGLE_MONITOR_THRESHOLD = 1;    // fallback threshold for single monitor
     constexpr int CONFIG_FLAG_COUNT = 4;           // number of command line flags
+    constexpr auto WORKSPACE_SHOW_DURATION = 3s;   // how long to show waybar after workspace change
+    constexpr auto MOUSE_ACTIVATION_DELAY = 250ms; // how long mouse must be in activation zone
+    constexpr int MAX_WAYBAR_CRASHES = 3;          // maximum waybar crashes before giving up
+    constexpr auto WAYBAR_CRASH_WINDOW = 30s;      // time window for crash counting
 }
 
 // TYPES
@@ -62,14 +66,14 @@ enum class BarMode : std::uint8_t {
 
 class Waybar {
 public:
-    Waybar(const std::string &mode, int threshold, bool verbose, const std::string &config_dir);
+    Waybar(const std::string &mode, int threshold, int verbose, const std::string &config_dir);
     ~Waybar();
     auto run() -> void; // calls the apropiate operation mode
-    auto reloadPid() const -> void; // sigusr2
+    auto reloadPid() -> void; // sigusr2
     auto setBarMode(BarMode mode); // setter for mode
 private:
     // modes
-    auto hideAllMonitors(bool is_visible = true) const -> void;
+    auto hideAllMonitors(bool is_visible = true) -> void;
     auto hideFocused() -> void;                  
     auto hideCustom() -> void;
     auto parseMode(const std::string &mode) -> BarMode;
@@ -81,7 +85,7 @@ private:
     auto setupCustomMode() -> void;
     auto runCustomModeLoop() -> void;
     auto initializeCustomModeMouse() -> std::pair<int, int>;
-    auto processCustomModeIteration(monitor_info_t& mon, int mouse_x, int mouse_y, int local_bar_threshold) -> bool;
+    auto processCustomModeIteration(int mouse_x, int mouse_y) -> bool;
     auto showHiddenMonitor(monitor_info_t& mon) -> bool;
     auto cleanupCustomMode() -> void;
     auto handleMonitorThreshold(monitor_info_t& mon, int& mouse_x, int& mouse_y, int local_bar_threshold) -> bool;
@@ -101,17 +105,24 @@ private:
     auto handleHiddenMonitor(monitor_info_t& mon, int mouse_x, int mouse_y) -> bool;
     
     // all monitors mode helpers
-    auto setupAllMonitorsMode(bool& is_visible) const -> void;
-    auto runAllMonitorsLoop(bool is_visible) const -> void;
-    auto cleanupAllMonitorsMode() const -> void;
-    auto processAllMonitorsVisibility(int root_x, int root_y, bool is_visible) const -> bool;
-    auto processMonitorVisibility(const monitor_info_t& mon, int root_y, bool is_visible) const -> bool;
-    auto showWaybarAndKeepOpen(const monitor_info_t& mon, int local_bar_threshold) const -> bool;
-    auto hideWaybarAndReturnFalse() const -> bool;
+    auto setupAllMonitorsMode(bool& is_visible) -> void;
+    auto runAllMonitorsLoop(bool is_visible) -> void;
+    auto cleanupAllMonitorsMode() -> void;
+    auto processAllMonitorsVisibility(int root_x, int root_y, bool is_visible) -> bool;
+    auto processMonitorVisibility(const monitor_info_t& mon, int root_y, bool is_visible) -> bool;
+    auto showWaybarAndKeepOpen(const monitor_info_t& mon, int local_bar_threshold) -> bool;
+    auto hideWaybarAndReturnFalse() -> bool;
     auto shouldShowWaybar(const monitor_info_t& mon, int root_y) const -> bool;
     auto shouldHideWaybar(const monitor_info_t& mon, int root_y, int threshold) const -> bool;
-    auto showWaybar() const -> void;
-    auto hideWaybar() const -> void;
+    auto checkMouseActivationDelay() -> bool;
+    auto showWaybar() -> void;
+    auto hideWaybar() -> void;
+    
+    // workspace monitoring helpers
+    auto getCurrentWorkspace() const -> int;
+    auto checkWorkspaceChange() const -> bool;
+    auto handleWorkspaceChange() -> void;
+    auto showWaybarTemporarily() -> void;
 
     // monitors
     auto getMonitor(const std::string &name) -> monitor_info_t&; // retrieves the monitor info by a name
@@ -119,6 +130,9 @@ private:
 
     // misc
     auto initPid() const -> pid_t;               // retreives pid of waybar
+    auto initPidOrRestart() -> pid_t;           // gets pid or restarts waybar if not running
+    auto restartWaybar() -> pid_t;               // restarts waybar process
+    auto checkWaybarCrashLimit() -> bool;       // checks if waybar has crashed too many times
     
     // initialization
     auto initialize() -> void;
@@ -136,7 +150,7 @@ private:
     auto handleSignal(int signal) -> void {
         if (signal == SIGINT || signal == SIGTERM || signal == SIGHUP) {
             log_message(WARN, "Interruption detected, saving resources...\n");
-            m_interrupt_request.store(true, std::memory_order_release);
+            // Note: This function is no longer used since we use global signal handlers
         }
     }
     static void cleanupSignals() {
@@ -148,15 +162,21 @@ private:
     pid_t m_waybar_pid;
     BarMode m_original_mode = BarMode::HIDE_ALL;
     bool m_is_console;
-    bool m_is_verbose;
+    int m_verbose_level;
     int m_bar_threshold = Constants::DEFAULT_BAR_THRESHOLD;
+    bool m_waybar_visible = false;  // track current waybar visibility state
+    std::chrono::steady_clock::time_point m_mouse_activation_start{}; // when mouse entered activation zone
+    bool m_mouse_in_activation_zone = false; // track if mouse is currently in activation zone
     std::string m_hidemon{}; // for mode BarMode::HIDE_MON
     std::vector<monitor_info_t> m_outputs{};
     std::string m_config_path;
     std::string m_config_dir;
     Json::Value m_config;
     Json::Value m_backup;
-    std::atomic<bool> m_interrupt_request{false};
+    
+    // Waybar crash tracking
+    int m_waybar_crash_count = 0;
+    std::chrono::steady_clock::time_point m_crash_window_start{};
 };
 
 inline auto printHelp() -> void {
@@ -172,16 +192,16 @@ inline auto printHelp() -> void {
     print(fg(color::yellow) | emphasis::bold, "Usage:\n");
 
     print(fg(color::cyan), "  autowaybar ");
-    print(fg(color::magenta) | emphasis::bold, "-m");
+    print(fg(color::magenta) | emphasis::bold, "[-m");
     print(fg(color::cyan), "/");
     print(fg(color::magenta) | emphasis::bold, "--mode ");
-    print(fg(color::white), "<Mode> \n");
+    print(fg(color::white), "<Mode>] \n");
 
     constexpr std::array<Flag, Constants::CONFIG_FLAG_COUNT> flags = {{
-        {.name = "-m --mode", .description = "Select the operation mode for waybar."},
+        {.name = "-m --mode", .description = "Select the operation mode for waybar (default: all)."},
         {.name = "-t --threshold", .description = "Threshold in pixels that should match your waybar width"},
         {.name = "-h --help", .description = "Show this help"},
-        {.name = "-v --verbose", .description = "Enable verbose output"}
+        {.name = "-v --verbose", .description = "Enable verbose output (-v for LOG level, -vv for TRACE level)"}
     }};
 
     size_t maxFlagLength = 0;
@@ -199,6 +219,7 @@ inline auto printHelp() -> void {
     print(fg(color::cyan), "  autowaybar -m focused -v\n");
     print(fg(color::cyan), "  autowaybar -m all\n");
     print(fg(color::cyan), "  autowaybar -m mon:DP-2 -v\n");
+    print(fg(color::cyan), "  autowaybar -m mon:DP-2,HDMI-1 -v\n");
     print(fg(color::cyan), "  autowaybar -m focused -t 100\n");
     print(fg(color::cyan), "  autowaybar -m all -t 100\n");
 
@@ -211,5 +232,6 @@ inline auto printHelp() -> void {
     print(emphasis::italic, "Hide all monitors, when the mouse reaches the top of the screen, \n"
     "  both will be shown and when you go down the `threshold`, they will be hidden again.\n\n");
     print(fg(color::cyan), "  mon:<monitorname>: ");
-    print(emphasis::italic, "Hide the bar only on the specified monitor.\n\n");
+    print(emphasis::italic, "Hide the bar only on the specified monitor(s).\n");
+    print(emphasis::italic, "  Multiple monitors can be specified: mon:DP-2,HDMI-1\n\n");
 }

@@ -13,7 +13,7 @@ struct Args {
     std::string mode{};
     int threshold = Constants::DEFAULT_BAR_THRESHOLD;
     bool help = false;
-    bool verbose = false;
+    int verbose = 0;  // 0 = normal, 1 = -v (LOG), 2 = -vv (TRACE)
 };
 
 auto parseArguments(int argc, char* argv[]) -> Args {
@@ -41,7 +41,7 @@ auto parseArguments(int argc, char* argv[]) -> Args {
             args.threshold = std::stoi(std::string(optarg));
             break;
         case 'v':
-            args.verbose = true;
+            args.verbose++;
             break;
         default:
             printHelp();
