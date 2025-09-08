@@ -1,5 +1,5 @@
 ### Description
-**Fork of [autowaybar](https://github.com/Direwolfesp/autowaybar)** - Refactored version following anti-kruft principles.
+**Fork of [autowaybar](https://github.com/Direwolfesp/autowaybar)** - A program that automatically hides waybar based on cursor position for Hyprland.
 
 **Original work by [@Direwolfesp](https://github.com/Direwolfesp)** - all credit for the core functionality belongs to them.
 
@@ -11,11 +11,12 @@ This fork has been refactored to follow strict anti-kruft engineering principles
 > In order to work, it must follow these constraints: exactly 1 Waybar process must be running with only 1 Bar. And Waybar **must** have been launched providing **full paths** for its config file. (ie. `waybar -c ~/.config/waybar/config`)
 
 ### Features
-- **Simple and Direct**: Clean, focused code that does one thing well
-- **Anti-Kruft Design**: Follows strict engineering principles for maintainable code
-- **Modern C++20**: Uses appropriate C++20 features without over-engineering
-- **Focused Functions**: Each function has a single, clear responsibility
-- **Minimal Dependencies**: Only essential libraries (fmt, jsoncpp)
+- **Auto-hide waybar**: Hides waybar when mouse moves away from top of screen
+- **Multiple modes**: Hide all monitors, focused monitor only, or specific monitors
+- **Mouse activation**: Shows waybar when mouse reaches top of screen
+- **Workspace awareness**: Temporarily shows waybar on workspace changes
+- **Crash protection**: Automatically restarts waybar if it crashes
+- **Minimal dependencies**: Only requires fmt and jsoncpp
 
 ### Requirements
 All deps except xmake are included with waybar.
@@ -29,14 +30,15 @@ jsoncpp
 
 
 ### Usage Modes
-- `autowaybar -m all`: Will hide waybar in all monitors until your mouse reaches the top of any of the screens.
-- `autowaybar -m focused`: Will hide waybar in the focused monitor only. 
-- `autowaybar -m mon:DP-2`: Will hide waybar in the DP-2 monitor only.
+- `autowaybar -m all`: Hide waybar on all monitors until mouse reaches top of any screen
+- `autowaybar -m focused`: Hide waybar on focused monitor only
+- `autowaybar -m mon:DP-2`: Hide waybar on specific monitor (DP-2)
+- `autowaybar -m mon:DP-2,HDMI-1`: Hide waybar on multiple monitors
 
-### Configuration Discovery
-The program searches for waybar config in this order:
-1. Command line argument path (if waybar was started with `-c` flag)
-2. `$HOME/.config/waybar/config` (default location) 
+### Options
+- `-t, --threshold`: Threshold in pixels (default: 50, range: 1-1000)
+- `-v, --verbose`: Enable verbose output (-v for LOG, -vv for TRACE)
+- `-h, --help`: Show help message 
 
 ### Installation
 
@@ -147,18 +149,12 @@ echo $XDG_SESSION_DESKTOP
 ```
 
 ### Development
-The codebase follows anti-kruft principles:
-- **Focused Functions**: Each function does one thing well
-- **Direct Solutions**: No unnecessary abstractions or wrapper classes
-- **Simple Error Handling**: Clear error messages and fail-fast approach
-- **Minimal Complexity**: Code is easy to understand and maintain
-### Run
-Now you can run it by doing:
 ```bash
-xmake run autowaybar arguments [args]
-```
-or you can install it to your path by doing:
-```bash
+# Build and run
+xmake f -m release && xmake
+xmake run autowaybar -m all
+
+# Install to system
 xmake install --admin
 ```
 ### Sample bind config for waybar & autowaybar in hyprland.conf
@@ -174,14 +170,6 @@ bind=$mainMod SHIFT, A, exec, killall -SIGTERM autowaybar
 hyprctl monitors | grep Monitor
 Monitor eDP-1 (ID 0):
 ```
-
-### Code Quality
-This fork follows anti-kruft engineering principles:
-- **Simplicity Over Cleverness**: Direct solutions instead of complex abstractions
-- **Focused Functions**: Each function has a single, clear responsibility
-- **Minimal Dependencies**: Only essential libraries are used
-- **Clear Error Handling**: Simple, actionable error messages
-- **Maintainable Code**: Easy to understand and modify
 
 ### Credits
 - **Original Author**: [@Direwolfesp](https://github.com/Direwolfesp) - [autowaybar](https://github.com/Direwolfesp/autowaybar)

@@ -449,7 +449,21 @@ auto Waybar::loadConfig() -> void {
         throw std::runtime_error("Cannot open config file: " + m_config_path);
     }
     
+    // Check file size to prevent memory exhaustion
+    file.seekg(0, std::ios::end);
+    auto file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    
+    constexpr size_t MAX_CONFIG_SIZE = 1024 * 1024; // 1MB limit
+    if (static_cast<size_t>(file_size) > MAX_CONFIG_SIZE) {
+        throw std::runtime_error("Config file too large: " + std::to_string(file_size) + " bytes");
+    }
+    
     Json::CharReaderBuilder builder;
+    // Set parsing limits
+    builder["maxDepth"] = 10;  // Maximum nesting depth
+    builder["maxErrors"] = 10; // Maximum parsing errors
+    
     std::string errors;
     if (!Json::parseFromStream(builder, file, &m_config, &errors)) {
         throw std::runtime_error("Invalid JSON in config file: " + errors);
@@ -470,6 +484,33 @@ auto Waybar::validateConfig() -> void {
     }
 }
 
+auto Waybar::isValidConfigPath(const std::string& path) const -> bool {
+    if (path.empty()) return false;
+    
+    // Check for path traversal attempts
+    if (path.find("..") != std::string::npos) return false;
+    if (path.find("//") != std::string::npos) return false;
+    
+    // Must be absolute path
+    if (path[0] != '/') return false;
+    
+    // Must be within user's home directory or /etc
+    const char* home = std::getenv("HOME");
+    if (home) {
+        std::string home_str(home);
+        if (path.substr(0, home_str.length()) == home_str) {
+            return true;
+        }
+    }
+    
+    // Allow /etc paths for system configs
+    if (path.substr(0, 4) == "/etc") {
+        return true;
+    }
+    
+    return false;
+}
+
 auto Waybar::getConfigPath() -> std::string {
     auto str_cmd = get_process_args(m_waybar_pid);
     std::string_view cmd_view(str_cmd);
@@ -485,8 +526,12 @@ auto Waybar::getConfigPath() -> std::string {
         
         if (start < end) {
             std::string config_path(cmd_view.substr(start, end - start));
-            if (fs::exists(config_path)) {
-                return config_path;
+            
+            // Validate path is within expected directories
+            if (isValidConfigPath(config_path)) {
+                if (fs::exists(config_path)) {
+                    return config_path;
+                }
             }
         }
     }

@@ -89,7 +89,20 @@ auto parseArguments(int argc, char* argv[]) -> Args {
             args.help = true;
             break;
         case 't':
-            args.threshold = std::stoi(std::string(optarg));
+            try {
+                int threshold = std::stoi(std::string(optarg));
+                if (threshold < Constants::MIN_THRESHOLD || threshold > Constants::MAX_THRESHOLD) {
+                    log_message(CRIT, "Threshold must be between {} and {}\n", 
+                               Constants::MIN_THRESHOLD, Constants::MAX_THRESHOLD);
+                    printHelp();
+                    exit(1);
+                }
+                args.threshold = threshold;
+            } catch (const std::exception&) {
+                log_message(CRIT, "Invalid threshold value: {}\n", optarg);
+                printHelp();
+                exit(1);
+            }
             break;
         case 'v':
             args.verbose++;

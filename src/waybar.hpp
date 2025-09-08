@@ -143,6 +143,7 @@ private:
     auto loadConfig() -> void;
     auto validateConfig() -> void;
     auto getConfigPath() -> std::string;
+    auto isValidConfigPath(const std::string& path) const -> bool;
     auto saveConfig() -> void;
     auto getOutputs() -> Json::Value&;
     auto setOutputs(const Json::Value &outputs) -> void;
