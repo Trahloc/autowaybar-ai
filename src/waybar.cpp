@@ -57,14 +57,18 @@ auto is_cursor_in_monitor(const monitor_info_t &mon, int x, int y) -> bool {
 // reloads waybar with the new visible monitors
 auto Waybar::requestApplyVisibleMonitors(bool need_reload) -> void {
     if (need_reload) {
-        log_message(LOG, "Updating\n");
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Updating\n");
+        }
         Json::Value arr(Json::arrayValue);
         for (const auto& mon : m_outputs) {
             if (!mon.hidden)
                 arr.append(mon.name);
         }
         setOutputs(arr);
-        log_message(LOG, "New update: {}", fmt::streamed(getOutputs()));
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "New update: {}", fmt::streamed(getOutputs()));
+        }
         reloadPid(); // always reload to apply changes
     }
 }
@@ -386,7 +390,9 @@ auto Waybar::processCustomModeIteration(int mouse_x, int mouse_y) -> bool {
 }
 
 auto Waybar::showHiddenMonitor(monitor_info_t& mon) -> bool {
-    log_message(LOG, "Mon: {} needs to be shown.\n", mon.name);
+    if (m_verbose_level >= 1) {
+        log_message(LOG, "Mon: {} needs to be shown.\n", mon.name);
+    }
     mon.hidden = false;
     return true;
 }
@@ -400,7 +406,9 @@ auto Waybar::cleanupCustomMode() -> void {
 
 auto Waybar::handleMonitorThreshold(monitor_info_t& mon, int& mouse_x, int& mouse_y, int local_bar_threshold) -> bool {
     if (mouse_y > local_bar_threshold) {
-        log_message(LOG, "Mon: {} needs to be hidden.\n", mon.name);
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Mon: {} needs to be hidden.\n", mon.name);
+        }
         mon.hidden = true;
         return true;
     }
@@ -411,7 +419,9 @@ auto Waybar::handleMonitorThreshold(monitor_info_t& mon, int& mouse_x, int& mous
         std::tie(mouse_x, mouse_y) = getCursorPos();
     }
     
-    log_message(LOG, "Mon: {} needs to be hidden.\n", mon.name);
+    if (m_verbose_level >= 1) {
+        log_message(LOG, "Mon: {} needs to be hidden.\n", mon.name);
+    }
     mon.hidden = true;
     return true;
 }
@@ -774,7 +784,9 @@ auto Waybar::handleVisibleMonitor(monitor_info_t& mon, int mouse_x, int mouse_y)
 
 auto Waybar::handleHiddenMonitor(monitor_info_t& mon, int /* mouse_x */, int mouse_y) -> bool {
     if (mouse_y < mon.y_coord + Constants::MOUSE_ACTIVATION_ZONE) {
-        log_message(LOG, "Mon: {} needs to be shown.\n", mon.name);
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Mon: {} needs to be shown.\n", mon.name);
+        }
         mon.hidden = false;
         return true;
     }
@@ -835,12 +847,16 @@ auto Waybar::checkWorkspaceChange() const -> bool {
 
 auto Waybar::handleWorkspaceChange() -> void {
     int current_workspace = g_current_workspace.load(std::memory_order_acquire);
-    log_message(LOG, "Workspace changed to workspace {}\n", current_workspace);
+    if (m_verbose_level >= 1) {
+        log_message(LOG, "Workspace changed to workspace {}\n", current_workspace);
+    }
     showWaybarTemporarily();
 }
 
 auto Waybar::showWaybarTemporarily() -> void {
-    log_message(LOG, "Showing waybar temporarily for {} seconds after workspace change\n", Constants::WORKSPACE_SHOW_DURATION.count());
+    if (m_verbose_level >= 1) {
+        log_message(LOG, "Showing waybar temporarily for {} seconds after workspace change\n", Constants::WORKSPACE_SHOW_DURATION.count());
+    }
     
     // Show waybar
     showWaybar();
@@ -856,7 +872,9 @@ auto Waybar::showWaybarTemporarily() -> void {
     
     // Hide waybar after duration
     hideWaybar();
-    log_message(LOG, "Waybar hidden after workspace change\n");
+    if (m_verbose_level >= 1) {
+        log_message(LOG, "Waybar hidden after workspace change\n");
+    }
 }
 
 
