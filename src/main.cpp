@@ -6,7 +6,6 @@
 #include <filesystem>
 #include <fstream>
 #include <csignal>
-#include <atomic>
 #include <cstdlib>
 
 auto getConfigDir() -> std::string {
@@ -104,11 +103,9 @@ auto parseArguments(int argc, char* argv[]) -> Args {
     return args;
 }
 
-// Global flag for cleanup
-static std::atomic<bool> g_cleanup_requested{false};
-
+// Signal handler for cleanup
 auto cleanup_handler(int /* signal */) -> void {
-    g_cleanup_requested.store(true, std::memory_order_release);
+    // Signal received, cleanup will happen via atexit
 }
 
 auto main(int argc, char *argv[]) -> int {
