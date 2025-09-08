@@ -1,5 +1,13 @@
 #include "waybar.hpp"
 #include <getopt.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <filesystem>
+#include <fstream>
+#include <csignal>
+#include <atomic>
+#include <cstdlib>
 
 auto getConfigDir() -> std::string {
     const char* home = std::getenv("HOME");
@@ -7,6 +15,50 @@ auto getConfigDir() -> std::string {
         throw std::runtime_error("HOME environment variable not set");
     }
     return std::string(home) + "/.config/waybar";
+}
+
+auto getPidFilePath() -> std::string {
+    const char* xdg_runtime_dir = std::getenv("XDG_RUNTIME_DIR");
+    if (!xdg_runtime_dir) {
+        throw std::runtime_error("XDG_RUNTIME_DIR environment variable not set");
+    }
+    return std::string(xdg_runtime_dir) + "/autowaybar.pid";
+}
+
+auto createPidFile() -> void {
+    std::string pid_file = getPidFilePath();
+    
+    // Check if PID file already exists
+    if (std::filesystem::exists(pid_file)) {
+        // Read existing PID and check if process is still running
+        std::ifstream file(pid_file);
+        if (file.is_open()) {
+            pid_t existing_pid;
+            file >> existing_pid;
+            file.close();
+            
+            // Check if process is still running
+            if (kill(existing_pid, 0) == 0) {
+                throw std::runtime_error("autowaybar is already running (PID: " + std::to_string(existing_pid) + ")");
+            } else {
+                // Process is dead, remove stale PID file
+                std::filesystem::remove(pid_file);
+            }
+        }
+    }
+    
+    // Create PID file
+    std::ofstream file(pid_file);
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot create PID file: " + pid_file);
+    }
+    file << getpid() << std::endl;
+    file.close();
+}
+
+auto removePidFile() -> void {
+    std::string pid_file = getPidFilePath();
+    std::filesystem::remove(pid_file);
 }
 
 struct Args {
@@ -52,6 +104,13 @@ auto parseArguments(int argc, char* argv[]) -> Args {
     return args;
 }
 
+// Global flag for cleanup
+static std::atomic<bool> g_cleanup_requested{false};
+
+auto cleanup_handler(int /* signal */) -> void {
+    g_cleanup_requested.store(true, std::memory_order_release);
+}
+
 auto main(int argc, char *argv[]) -> int {
     try {
         std::string config_dir = getConfigDir();
@@ -62,6 +121,17 @@ auto main(int argc, char *argv[]) -> int {
             return 0;
         }
 
+        // Create PID file to prevent multiple instances
+        createPidFile();
+        
+        // Set up signal handlers for cleanup
+        std::signal(SIGINT, cleanup_handler);
+        std::signal(SIGTERM, cleanup_handler);
+        std::signal(SIGHUP, cleanup_handler);
+        
+        // Ensure cleanup on exit
+        std::atexit([]() { removePidFile(); });
+        
         Waybar bar(args.mode, args.threshold, args.verbose, config_dir);
         bar.run();
         
@@ -69,6 +139,7 @@ auto main(int argc, char *argv[]) -> int {
         
     } catch (const std::exception& e) {
         log_message(CRIT, "Error: {}\n", e.what());
+        removePidFile(); // Clean up PID file on error
         return 1;
     }
 }
