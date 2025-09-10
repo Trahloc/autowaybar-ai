@@ -29,21 +29,6 @@ static std::atomic<int> g_current_workspace{1};
 
 // Auxiliary functions
 
-auto register_signals(const Waybar* /* instance */) -> void {
-    // Set up signal handlers that set the global interrupt flag
-    std::signal(SIGINT, [](int) { 
-        log_message(WARN, "Interruption detected, saving resources...\n");
-        g_interrupt_request.store(true, std::memory_order_release);
-    });
-    std::signal(SIGTERM, [](int) { 
-        log_message(WARN, "Interruption detected, saving resources...\n");
-        g_interrupt_request.store(true, std::memory_order_release);
-    });
-    std::signal(SIGHUP, [](int) { 
-        log_message(WARN, "Interruption detected, saving resources...\n");
-        g_interrupt_request.store(true, std::memory_order_release);
-    });
-}
 
 auto is_cursor_in_monitor(const monitor_info_t &mon, int x, int y) -> bool {
     return mon.x_coord <= x &&
@@ -91,19 +76,83 @@ auto Waybar::checkWaybarCrashLimit() -> bool {
     return false; // Within limits
 }
 
+auto Waybar::enforceSingleWaybar() -> void {
+    std::string existing_pid_str = execute_command("/usr/sbin/pidof waybar");
+    if (existing_pid_str.empty()) {
+        return; // No waybar processes running
+    }
+    
+    existing_pid_str.erase(existing_pid_str.find_last_not_of(" \t\n\r") + 1);
+    
+    // Count valid PIDs
+    std::istringstream pid_stream(existing_pid_str);
+    std::string pid_token;
+    int valid_pid_count = 0;
+    while (pid_stream >> pid_token) {
+        try {
+            pid_t pid = std::stoi(pid_token);
+            if (kill(pid, 0) == 0) {
+                valid_pid_count++;
+            }
+        } catch (const std::exception& e) {
+            // Ignore parsing errors
+        }
+    }
+    
+    if (valid_pid_count > 1) {
+        log_message(WARN, "Multiple waybar processes detected ({}), enforcing single waybar policy...\n", valid_pid_count);
+        
+        // Kill all waybar processes
+        std::istringstream pid_stream2(existing_pid_str);
+        while (pid_stream2 >> pid_token) {
+            try {
+                pid_t existing_pid = std::stoi(pid_token);
+                
+                // Verify the existing process is actually running
+                if (kill(existing_pid, 0) == 0) {
+                    log_message(INFO, "Killing existing waybar process (PID: {})\n", existing_pid);
+                    if (kill(existing_pid, SIGTERM) == -1) {
+                        log_message(WARN, "Failed to send SIGTERM to waybar process {}: {}\n", existing_pid, strerror(errno));
+                    }
+                    
+                    // Wait for process to die
+                    int attempts = 0;
+                    while (kill(existing_pid, 0) == 0 && attempts < 10) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        attempts++;
+                    }
+                    
+                    // Force kill if still running
+                    if (kill(existing_pid, 0) == 0) {
+                        log_message(WARN, "Force killing waybar process {}\n", existing_pid);
+                        kill(existing_pid, SIGKILL);
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    }
+                }
+            } catch (const std::exception& e) {
+                log_message(WARN, "Failed to parse PID: {}\n", pid_token);
+            }
+        }
+    }
+}
+
 auto Waybar::restartWaybar() -> pid_t {
-    log_message(INFO, "Attempting to restart waybar...\n");
+    log_message(INFO, "Starting waybar...\n");
+    
+    // Reset crash count if it's been more than 30 seconds since last attempt
+    auto now = std::chrono::steady_clock::now();
+    if (now - m_crash_window_start > Constants::WAYBAR_CRASH_WINDOW) {
+        m_waybar_crash_count = 0;
+        m_crash_window_start = now;
+    }
     
     // Check crash limit before attempting restart
     if (checkWaybarCrashLimit()) {
         throw std::runtime_error("Waybar is unstable - crashed 3 times in 30 seconds. Giving up.");
     }
     
-    // Increment crash count and set window start if this is the first crash
-    if (m_waybar_crash_count == 0) {
-        m_crash_window_start = std::chrono::steady_clock::now();
-    }
-    m_waybar_crash_count++;
+    // Enforce single waybar policy
+    enforceSingleWaybar();
     
     // Try to start waybar
     pid_t child_pid = fork();
@@ -117,44 +166,108 @@ auto Waybar::restartWaybar() -> pid_t {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         
         // Check if waybar is now running
-        std::string pid_str = execute_command("pidof waybar");
+        std::string pid_str = execute_command("/usr/sbin/pidof waybar");
         if (!pid_str.empty()) {
             pid_str.erase(pid_str.find_last_not_of(" \t\n\r") + 1);
             pid_t actual_pid = std::stoi(pid_str);
-            log_message(INFO, "Waybar restarted successfully with PID: {}\n", actual_pid);
+            log_message(INFO, "Waybar started successfully with PID: {}\n", actual_pid);
             return actual_pid;
         } else {
-            throw std::runtime_error("Failed to restart waybar - process not found after startup");
+            // Waybar failed to start - increment crash count
+            if (m_waybar_crash_count == 0) {
+                m_crash_window_start = std::chrono::steady_clock::now();
+            }
+            m_waybar_crash_count++;
+            throw std::runtime_error("Failed to start waybar - process not found after startup");
         }
     } else {
-        // Fork failed
-        throw std::runtime_error("Failed to fork process for waybar restart: " + std::string(strerror(errno)));
+        // Fork failed - increment crash count
+        if (m_waybar_crash_count == 0) {
+            m_crash_window_start = std::chrono::steady_clock::now();
+        }
+        m_waybar_crash_count++;
+        throw std::runtime_error("Failed to fork process for waybar start: " + std::string(strerror(errno)));
     }
 }
 
 auto Waybar::initPid() const -> pid_t {
-    std::string pid_str = execute_command("pidof waybar");
+    std::string pid_str = execute_command("/usr/sbin/pidof waybar");
     if (pid_str.empty()) {
         throw std::runtime_error("Waybar is not running");
     }
     
     pid_str.erase(pid_str.find_last_not_of(" \t\n\r") + 1);
-    pid_t pid = std::stoi(pid_str);
     
-    return pid;
+    // Handle multiple PIDs (pidof can return multiple PIDs separated by spaces)
+    std::istringstream pid_stream(pid_str);
+    std::string pid_token;
+    while (pid_stream >> pid_token) {
+        try {
+            pid_t pid = std::stoi(pid_token);
+            
+            // Verify the process is actually running
+            if (kill(pid, 0) == 0) {
+                return pid;
+            }
+        } catch (const std::exception& e) {
+            log_message(WARN, "Failed to parse PID: {}\n", pid_token);
+        }
+    }
+    
+    throw std::runtime_error("No valid waybar processes found");
 }
 
 auto Waybar::initPidOrRestart() -> pid_t {
-    std::string pid_str = execute_command("pidof waybar");
+    std::string pid_str = execute_command("/usr/sbin/pidof waybar");
     if (pid_str.empty()) {
-        log_message(INFO, "Waybar not running, attempting to restart...\n");
+        log_message(INFO, "Waybar not running, attempting to start...\n");
         return restartWaybar();
     }
     
+    // Check if there are multiple waybar processes - enforce "one waybar only"
     pid_str.erase(pid_str.find_last_not_of(" \t\n\r") + 1);
-    pid_t pid = std::stoi(pid_str);
     
-    return pid;
+    // Count valid PIDs
+    std::istringstream pid_stream(pid_str);
+    std::string pid_token;
+    int valid_pid_count = 0;
+    while (pid_stream >> pid_token) {
+        try {
+            pid_t pid = std::stoi(pid_token);
+            if (kill(pid, 0) == 0) {
+                valid_pid_count++;
+            }
+        } catch (const std::exception& e) {
+            // Ignore parsing errors
+        }
+    }
+    
+    if (valid_pid_count == 0) {
+        log_message(WARN, "No valid waybar processes found, attempting to start...\n");
+        return restartWaybar();
+    } else if (valid_pid_count == 1) {
+        // Only one waybar process - use it
+        std::istringstream pid_stream2(pid_str);
+        while (pid_stream2 >> pid_token) {
+            try {
+                pid_t pid = std::stoi(pid_token);
+                if (kill(pid, 0) == 0) {
+                    log_message(INFO, "Using existing waybar process (PID: {})\n", pid);
+                    return pid;
+                }
+            } catch (const std::exception& e) {
+                // Continue to next PID
+            }
+        }
+    } else {
+        // Multiple waybar processes - kill all and restart
+        log_message(WARN, "Multiple waybar processes detected ({}), enforcing single waybar policy...\n", valid_pid_count);
+        return restartWaybar();
+    }
+    
+    // Fallback
+    log_message(WARN, "No valid waybar processes found, attempting to start...\n");
+    return restartWaybar();
 }
 
 // Parse mode argument
@@ -178,12 +291,21 @@ auto Waybar::parseMode(const std::string &mode) -> BarMode {
 
 
 Waybar::Waybar(const std::string &mode, int threshold, int verbose, const std::string &config_dir)
-    : m_waybar_pid(initPidOrRestart()),
-      m_original_mode(parseMode(mode)),
+    : m_original_mode(parseMode(mode)),
       m_is_console(isatty(fileno(stdin))),
       m_verbose_level(verbose),
       m_bar_threshold(threshold),
-      m_config_dir(config_dir) {
+      m_config_dir(config_dir),
+      m_waybar_crash_count(0),
+      m_crash_window_start(std::chrono::steady_clock::now()) {
+    // Crash tracking already initialized in member initializer list
+    
+    // Enforce single waybar policy FIRST - kill multiple waybars before any operations
+    enforceSingleWaybar();
+    
+    // Now get waybar PID
+    m_waybar_pid = initPidOrRestart();
+    
     initialize();
 }
 
@@ -332,7 +454,6 @@ auto Waybar::setupCustomMode() -> void {
     }
     setOutputs(val);
     reloadPid();
-    register_signals(this);
 }
 
 auto Waybar::runCustomModeLoop() -> void {
@@ -565,9 +686,14 @@ auto Waybar::saveConfig() -> void {
 }
 
 auto Waybar::restoreOriginal() -> void {
+    if (m_config_path.empty()) {
+        log_message(WARN, "No config path available for restoration - waybar may not have been started properly\n");
+        return;
+    }
+    
     std::ofstream file(m_config_path);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot write config file: " + m_config_path);
+        throw std::runtime_error("Cannot write config file: " + m_config_path + " (check permissions and path)");
     }
     
     Json::StreamWriterBuilder builder;
@@ -587,7 +713,6 @@ auto Waybar::setupAllMonitorsMode(bool& is_visible) -> void {
         hideWaybar();
         is_visible = false;
     }
-    register_signals(this);
 }
 
 auto Waybar::cleanupAllMonitorsMode() -> void {
@@ -753,7 +878,6 @@ auto Waybar::hideFocused() -> void {
 
 auto Waybar::setupFocusedMode() -> void {
     validateFocusedModeConfig();
-    register_signals(this);
     std::sort(m_outputs.begin(), m_outputs.end());
 }
 
@@ -857,7 +981,11 @@ auto Waybar::getMonitor(const std::string &name) -> monitor_info_t& {
 
 // Workspace monitoring functions
 auto Waybar::getCurrentWorkspace() const -> int {
-    std::string workspace_info = execute_command("hyprctl activeworkspace");
+    if (!isHyprlandRunning()) {
+        return 1; // fallback to workspace 1
+    }
+    
+    std::string workspace_info = execute_command("/usr/bin/hyprctl activeworkspace");
     if (workspace_info.empty()) {
         return 1; // fallback to workspace 1
     }

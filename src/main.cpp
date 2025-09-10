@@ -116,9 +116,28 @@ auto parseArguments(int argc, char* argv[]) -> Args {
     return args;
 }
 
+// Global waybar instance for signal handling
+static Waybar* g_waybar_instance = nullptr;
+
 // Signal handler for cleanup
-auto cleanup_handler(int /* signal */) -> void {
-    // Signal received, cleanup will happen via atexit
+auto cleanup_handler(int signal) -> void {
+    log_message(WARN, "Signal {} received, shutting down waybar...\n", signal);
+    
+    if (g_waybar_instance) {
+        try {
+            // Restore original waybar config and reload
+            g_waybar_instance->restoreOriginal();
+            g_waybar_instance->reloadPid();
+        } catch (const std::exception& e) {
+            log_message(ERR, "Error during waybar cleanup: {}\n", e.what());
+        }
+    }
+    
+    // Remove PID file
+    removePidFile();
+    
+    // Exit cleanly
+    std::exit(0);
 }
 
 auto main(int argc, char *argv[]) -> int {
@@ -143,6 +162,7 @@ auto main(int argc, char *argv[]) -> int {
         std::atexit([]() { removePidFile(); });
         
         Waybar bar(args.mode, args.threshold, args.verbose, config_dir);
+        g_waybar_instance = &bar;  // Set global pointer for signal handler
         bar.run();
         
         return EXIT_SUCCESS;

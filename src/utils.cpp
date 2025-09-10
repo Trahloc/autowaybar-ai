@@ -8,6 +8,7 @@
 #include <sstream>
 #include <vector>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 // Get process arguments by PID
 auto get_process_args(const pid_t pid) -> std::string {
@@ -53,6 +54,12 @@ auto execute_command(const std::string_view command) -> std::string {
         // Child process
         close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);
+        // Redirect stderr to /dev/null to avoid mixing with stdout
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull != -1) {
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
         close(pipefd[1]);
         
         execv(argv[0], argv.data());

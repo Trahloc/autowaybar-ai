@@ -2,9 +2,21 @@
 
 // Exclusive for Hyprland, wont work with other WM
 
+// Check if we're running in Hyprland - fail fast if not
+auto isHyprlandRunning() -> bool {
+    const char* session = std::getenv("XDG_SESSION_DESKTOP");
+    return session && std::string(session) == "Hyprland";
+}
+
 // returns cursor x and y coords
 auto getCursorPos() -> std::pair<int, int> {
-    const std::string_view cmd = "hyprctl cursorpos";
+    if (!isHyprlandRunning()) {
+        const char* session = std::getenv("XDG_SESSION_DESKTOP");
+        std::string session_str = session ? session : "unknown";
+        throw std::runtime_error("This tool only works with Hyprland. Current session: " + session_str);
+    }
+    
+    const std::string_view cmd = "/usr/bin/hyprctl cursorpos";
     std::string result = execute_command(cmd);
     
     if (result.empty()) {
@@ -24,20 +36,31 @@ auto getCursorPos() -> std::pair<int, int> {
 
 // returns a vector with the monitor information provided by Hyprland
 auto getMonitorsInfo() -> std::vector<monitor_info_t> {
-        const std::string_view cmd = "hyprctl monitors all -j";
-        std::istringstream stream(execute_command(cmd));
+    if (!isHyprlandRunning()) {
+        const char* session = std::getenv("XDG_SESSION_DESKTOP");
+        std::string session_str = session ? session : "unknown";
+        throw std::runtime_error("This tool only works with Hyprland. Current session: " + session_str);
+    }
+    
+    const std::string_view cmd = "/usr/bin/hyprctl monitors all -j";
+    std::string result = execute_command(cmd);
+    
+    if (result.empty()) {
+        throw std::runtime_error("Failed to get monitor information from hyprctl");
+    }
+    
+    std::istringstream stream(result);
+    Json::Value data;
+    Json::CharReaderBuilder builder;
+    std::string errors;
+    
+    if (!Json::parseFromStream(builder, stream, &data, &errors)) {
+        throw std::runtime_error("Invalid JSON response from hyprctl: " + errors);
+    }
 
-        Json::Value data;
-        Json::CharReaderBuilder builder;
-        std::string errors;
-        
-        if (!Json::parseFromStream(builder, stream, &data, &errors)) {
-            throw std::runtime_error("Invalid JSON response from hyprctl");
-        }
-
-        if (!data.isArray()) {
-            throw std::runtime_error("Invalid JSON structure from hyprctl");
-        }
+    if (!data.isArray()) {
+        throw std::runtime_error("Invalid JSON structure from hyprctl");
+    }
 
         std::vector<monitor_info_t> monitors;
         monitors.reserve(data.size());

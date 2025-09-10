@@ -19,7 +19,7 @@ inline auto printHelp() -> void;
 
 // Configuration constants
 namespace Constants {
-    constexpr int DEFAULT_BAR_THRESHOLD = 50;
+    constexpr int DEFAULT_BAR_THRESHOLD = 100;
     constexpr int MOUSE_ACTIVATION_ZONE = 1;  // pixels from top of monitor
     constexpr auto POLLING_INTERVAL = 80ms;   // mouse position polling frequency
     constexpr int MIN_THRESHOLD = 1;          // minimum threshold value
@@ -70,6 +70,7 @@ public:
     ~Waybar();
     auto run() -> void; // calls the apropiate operation mode
     auto reloadPid() -> void; // sigusr2
+    auto restoreOriginal() -> void; // restore original waybar config
     auto setBarMode(BarMode mode); // setter for mode
 private:
     // modes
@@ -133,6 +134,7 @@ private:
     auto initPidOrRestart() -> pid_t;           // gets pid or restarts waybar if not running
     auto restartWaybar() -> pid_t;               // restarts waybar process
     auto checkWaybarCrashLimit() -> bool;       // checks if waybar has crashed too many times
+    auto enforceSingleWaybar() -> void;         // enforces single waybar policy
     
     // initialization
     auto initialize() -> void;
@@ -147,7 +149,6 @@ private:
     auto saveConfig() -> void;
     auto getOutputs() -> Json::Value&;
     auto setOutputs(const Json::Value &outputs) -> void;
-    auto restoreOriginal() -> void;
     auto handleSignal(int signal) -> void {
         if (signal == SIGINT || signal == SIGTERM || signal == SIGHUP) {
             log_message(WARN, "Interruption detected, saving resources...\n");
@@ -188,8 +189,8 @@ inline auto printHelp() -> void {
         std::string_view description;
     };
 
-    print(fg(color::yellow) | emphasis::bold, "autowaybar: \n");
-    print(fg(color::cyan), "Program to manage visibility modes for waybar in Hyprland\n\n");
+    print(fg(color::yellow) | emphasis::bold, "autowaybar-ai v1.1.0: \n");
+    print(fg(color::cyan), "AI-enhanced program to manage visibility modes for waybar in Hyprland\n\n");
     print(fg(color::yellow) | emphasis::bold, "Usage:\n");
 
     print(fg(color::cyan), "  autowaybar ");

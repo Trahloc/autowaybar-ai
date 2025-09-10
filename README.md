@@ -1,6 +1,8 @@
 ### Description
 **Fork of [autowaybar](https://github.com/Direwolfesp/autowaybar)** - A program that automatically hides waybar based on cursor position for Hyprland.
 
+**Version 1.1.0** - Enhanced with single waybar enforcement and fail-fast error handling.
+
 **Original work by [@Direwolfesp](https://github.com/Direwolfesp)** - all credit for the core functionality belongs to them.
 
 This fork has been refactored to follow strict anti-kruft engineering principles: simplicity over cleverness, direct solutions over abstractions, and focused functions that do one thing well.
@@ -13,6 +15,8 @@ This fork has been refactored to follow strict anti-kruft engineering principles
 ### Features
 - **Auto-hide waybar**: Hides waybar when mouse moves away from top of screen
 - **Process management**: Automatically starts waybar if not running, restarts if it crashes
+- **Single waybar enforcement**: Ensures only one waybar process runs at a time
+- **Fail-fast error handling**: Clear error messages with immediate failure on invalid conditions
 - **Multiple modes**: Hide all monitors, focused monitor only, or specific monitors
 - **Mouse activation**: Shows waybar when mouse reaches top of screen
 - **Workspace awareness**: Temporarily shows waybar on workspace changes
