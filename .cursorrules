@@ -1,11 +1,8 @@
-# ANTI-KRUFT DEVELOPMENT RULES
-# Strict engineering standards for powerful but straightforward tools
+# PRAGMATIC PROGRAMMING CONSTRAINTS
+# Engineering standards for personal utilities foundation
 
-## CORE PRINCIPLE: SIMPLICITY OVER CLEVERNESS
-- **Every line of code must justify its existence**
-- **If it doesn't solve a real problem, delete it**
-- **Prefer obvious solutions over "elegant" ones**
-- **Measure twice, cut once - but cut aggressively**
+## CORE PRINCIPLE
+**Simplicity over cleverness.** Most "elegant" code is actually harder to understand.
 
 ## DECISION FRAMEWORK
 When in doubt, ask:
@@ -14,222 +11,213 @@ When in doubt, ask:
 3. Does this solve a real problem?
 4. Would a reasonable developer understand this choice?
 
-## PROJECT REALITY CHECK
-**Understand what your tool actually does:**
-- Identify the core 3-4 essential functions
-- Everything else is complexity
-- If you can't explain it in 4 bullet points, it's too complex
-- **Examples of good scope**: File processor, API client, System monitor, Config manager
+---
 
-**For project-specific details, see AI-CONTEXT.md**
+## HARD CONSTRAINTS (MUST/SHALL)
+**Violate these and code is objectively broken or violates fundamental principles.**
+*Based on RFC 2119 "Key words for use in RFCs to Indicate Requirement Levels"*
 
-## MANDATORY CODE REVIEW CRITERIA
-
-### ❌ IMMEDIATE REJECTION CRITERIA
+- **No circular dependencies** - This breaks the build
+- **No infinite loops** - This breaks the system
+- **No memory leaks** - This breaks the system over time
+- **No race conditions in single-threaded code** - This is impossible
+- **No unreachable code** - This is dead code
+- **No premature optimization** - Profile first, optimize second (optimization without measurement is guessing)
+- **Fail fast** - If something's wrong, exit immediately with clear message (prevents silent failures)
+- **No "future-proofing"** - Solve today's problems, not tomorrow's (YAGNI principle)
 - **No exception hierarchies** - Use `std::runtime_error` or `std::invalid_argument`
 - **No "utility" namespaces** - Avoid namespaces that only contain helper functions
 - **No unnecessary caching** - Cache expensive operations, not simple environment variables
 - **No "enterprise patterns"** - This isn't enterprise software
-- **No premature optimization** - Profile first, optimize second
-- **No "future-proofing"** - Solve today's problems, not tomorrow's
-
-### ✅ REQUIRED SIMPLIFICATIONS
-- **One exception type per error category** - Not many different exception classes
-- **Direct function calls** - No unnecessary abstraction layers
-- **Minimal validation** - Validate what matters, ignore the rest
-- **Fail fast** - If something's wrong, exit immediately with clear message
 - **No thread safety for single-threaded code** - Don't solve problems that don't exist
 
-## CODE COMPLEXITY LIMITS
-- **Limit indirection levels** - If you need too many, the design is wrong
-- **Keep functions focused** - If they're too long, break them down
-- **Limit function parameters** - If there are too many, use a struct
-- **Minimize abstraction layers** - Direct is better than "clean"
+---
 
-**For project-specific complexity limits, see AI-CONTEXT.md**
+## SOFT CONSTRAINTS (SHOULD/RECOMMENDED)
+**Violate these and code becomes harder to maintain, debug, or understand.**
+*Based on RFC 2119 "Key words for use in RFCs to Indicate Requirement Levels"*
 
-## CONTEXTUAL RULES
-
-### FUNCTION LENGTH
-- Keep functions focused and readable
-- If a function does multiple things, break it up
-- Complete algorithms that naturally exceed typical limits are acceptable if they do one thing well
-
-### NAMESPACES
-- Avoid namespaces that only contain helper functions
-- Group related functionality logically, but prefer global functions for simple utilities
-- **Acceptable**: Constants namespace for related configuration values
-
-### OWNERSHIP SEMANTICS
-- Use raw pointers with RAII for simple ownership
-- Use smart pointers for complex ownership semantics
-- **Decision**: Which makes the ownership clearer?
-
-### VALIDATION
-- Validate inputs that matter for correctness
-- Don't validate everything "just in case"
+- **Limit indirection levels** - If you need too many, the design is wrong (harder to follow)
+- **Keep functions focused** - If they're too long, break them down (harder to debug)
+- **Limit function parameters** - If there are too many, use a struct (harder to call)
+- **Minimize abstraction layers** - Direct is better than "clean" (harder to understand)
+- **One exception type per error category** - Not many different exception classes (harder to handle)
+- **Direct function calls** - No unnecessary abstraction layers (harder to trace)
+- **Minimal validation** - Validate what matters, ignore the rest (harder to maintain)
+- **Validate inputs that matter** - Don't validate everything "just in case"
 - **Examples of what matters**: File paths, process IDs, user input
 - **Examples of what doesn't**: Integer overflow for mouse coordinates, bounds checking for unlikely values
 
-## PERFORMANCE REQUIREMENTS
-- **Minimize startup time** - Users expect responsive tools
-- **Keep memory usage reasonable** - Scale to the task complexity
-- **Avoid binary bloat** - Don't include unnecessary dependencies
-- **Optimize for runtime efficiency** - Cache expensive operations at startup
-- **Scale metrics to project size** - Different projects have different limits
+---
 
-**For project-specific performance targets and metrics, see AI-CONTEXT.md**
+## PREFERENCES (MAY/OPTIONAL)
+**Violate these and code is just different - no objective impact on correctness or maintainability.**
+*Based on RFC 2119 "Key words for use in RFCs to Indicate Requirement Levels"*
 
-## RUNTIME OPTIMIZATION PRINCIPLES
-- **Cache expensive operations at startup** - Don't repeat costly computations
-- **Minimize system calls** - Avoid repeated expensive operations
-- **Use direct function calls** - No indirection overhead during runtime
-- **Keep control flow simple** - Linear execution paths, minimal branching
-- **Fail fast on errors** - Don't waste cycles on recovery attempts
-
-## ERROR HANDLING PHILOSOPHY
-- **Fail fast and loud** - Better to crash than to silently fail
-- **One error message per problem** - Don't spam the user
-- **Actionable error messages** - Tell the user how to fix it
-- **No error recovery** - If it's broken, exit and let the user fix it
-
-## SECURITY: PRACTICAL, NOT PARANOID
-- **Validate inputs that matter** - Don't validate everything "just in case"
+- **Main file configuration** - Put all user-configurable settings at the top of main file
+- **No configuration files** - Use command line arguments and constants
 - **Use system tools** - Don't reinvent what the OS provides
 - **Trust the environment** - If `$HOME` is wrong, that's the user's problem
 - **No security theater** - Don't add "security" that doesn't actually help
-
-**For project-specific system tools, see AI-CONTEXT.md**
-
-## DEPENDENCY MANAGEMENT
-- **Minimize dependencies** - Every dependency is a liability
-- **Use system libraries** - Don't bundle what the system provides
-- **Scale to project size** - Adjust limits based on project complexity
-- **Question each dependency**: Do you really need it?
+- **Question each dependency** - Do you really need it?
 - **No optional dependencies** - If it's optional, it's probably unnecessary
-
-## TESTING STRATEGY
 - **Test the happy path** - Does it work when everything is correct?
 - **Test the obvious failures** - What happens when dependencies aren't available?
 - **No unit tests for trivial functions** - Test behavior, not implementation
 - **Integration tests over unit tests** - Does the whole thing work?
-
-**For project-specific testing details, see AI-CONTEXT.md**
-
-## BUILD AND DEPLOYMENT
 - **Single build command** - `make` or `xmake` should be enough
 - **No build scripts** - If you need a script, the build system is wrong
 - **Static linking preferred** - Fewer runtime dependencies
-- **No configuration files** - Use command line arguments
-
-## DOCUMENTATION STANDARDS
 - **README explains what it does** - Not how it's implemented
 - **Code comments explain why** - Not what (the code should be obvious)
 - **No API documentation** - It's not a library
 - **Examples over explanations** - Show, don't tell
-
-## MAINTENANCE PHILOSOPHY
 - **Delete code regularly** - If you haven't touched it in a while, delete it
 - **Refactor aggressively** - If it's hard to understand, rewrite it
 - **No backward compatibility** - Break things if it makes them simpler
 - **Version bumps for breaking changes** - But don't be afraid to break things
 
-## ANTI-PATTERNS TO AVOID
-- **"Enterprise" patterns** - This isn't a bank
-- **"Clean code" obsession** - Readable code is better than "clean" code
-- **Premature abstraction** - Abstract when you have multiple similar things
-- **"Future-proofing"** - Solve today's problems
-- **Over-engineering** - Simple solutions are better than complex ones
-- **"Best practices"** - Question every "best practice"
+---
 
-## ACCEPTABLE PATTERNS
+## PATTERNS (COMMON SOLUTIONS)
+**Proven solutions to common problems - use when appropriate, ignore when not.**
+*Based on "Design Patterns" by Gang of Four and "Patterns of Enterprise Application Architecture" by Martin Fowler*
+
 - **Constants namespace** for related configuration values
 - **Helper functions** for complex algorithms
 - **Direct members** for simple ownership
 - **Smart pointers** for complex ownership semantics
-
-## CONFLICT RESOLUTION MATRIX
-
-### Function length vs algorithm completeness
-- If breaking up creates artificial complexity, keep the algorithm together
-- If the function does multiple things, break it up
-- **Decision**: Does splitting make the code more or less understandable?
-
-### Smart pointers vs raw pointers
-- Use raw pointers with RAII for simple ownership
-- Use smart pointers for complex ownership semantics
-- **Decision**: Which makes the ownership clearer?
-
-### Namespaces vs global functions
-- Use namespaces for related functionality
-- Use global functions for simple utilities
-- **Decision**: Does grouping improve organization without adding complexity?
-
-## SUCCESS METRICS
-- **Keep codebase size reasonable** - If it's too long, it's too complex
-- **Minimize file count** - If you need many files, the design is wrong
-- **Minimize dependencies** - Every dependency is a liability
-- **Fast build times** - Enable rapid feedback loops
-- **Code must be understandable** - If users can't understand it, it's too complex
-
-**For project-specific success metrics and targets, see AI-CONTEXT.md**
-
-## FINAL RULE
-**If you're not sure whether to add something, don't add it.**
-**If you're not sure whether to remove something, remove it.**
-**When in doubt, choose the simpler option.**
-
-Remember: This is a tool that solves a specific problem. It's not a distributed system, it's not a web service, it's not enterprise software. Keep it simple, keep it fast, keep it working.
+- **Common configuration namespace** - `common.py` for shared constants
+- **Backend-specific modules** - `_llmload/vllm.py`, `_llmload/exllama.py` for different backends
+- **Translation layer** - `_llmload/translation.py` for parameter mapping
+- **Error isolation** - Each file handles one type of error (e.g., vLLM errors vs ExLlama errors)
+- **Different functional purposes** - Translation logic vs backend implementation
+- **Configuration segregation** - Common config vs backend-specific config
+- **Split for error isolation** (vLLM errors vs ExLlama errors)
+- **Don't split for "one concern per file"** (artificial separation of same function)
 
 ---
 
-# AUDITOR ROLE
+## ERROR MANAGEMENT & AI ASSISTANT BOUNDARIES
+**When given an error log, trace the error to the specific file causing it:**
+- **vLLM errors** → Look in `_llmload/vllm.py` and `common.py` only
+- **ExLlama errors** → Look in `_llmload/exllama.py` and `common.py` only
+- **Translation errors** → Look in `_llmload/translation.py` only
+- **Configuration errors** → Look in main file configuration section only
+- **Waybar errors** → Look in `src/waybar.cpp` and `src/waybar.hpp` only
+- **Hyprland errors** → Look in `src/Hyprland.cpp` and `src/Hyprland.hpp` only
+- **Utility errors** → Look in `src/utils.cpp` and `src/utils.hpp` only
+- **Main errors** → Look in `src/main.cpp` only
 
-## AUDITOR MISSION
-**Act as an independent auditor following the ANTI-KRUFT rules above.**
+**AI Assistant Management:**
+- **Don't touch unrelated files** - If error is in `src/waybar.cpp`, don't modify `src/Hyprland.cpp`
+- **Focus on the problem** - Fix the specific error, not the entire codebase
+- **Use common patterns for shared fixes** - If multiple files need the same fix
 
-**CRITICAL**: These rules are specifically designed to REJECT enterprise patterns, clean code obsession, and theoretical purity.
+---
+
+## PROJECT-SPECIFIC CONSTRAINTS
+**Specific to autowaybar-ai project**
+
+### CORE FUNCTIONS (3-4 essential functions):
+1. **Monitor cursor position** - Track mouse movement in Hyprland
+2. **Manage Waybar visibility** - Show/hide based on cursor position
+3. **Process management** - Start/stop/restart Waybar processes
+4. **Configuration management** - Load/save Waybar config
+
+### PERFORMANCE TARGETS:
+- **Startup time**: < 1 second
+- **Memory usage**: < 10MB
+- **Build time**: < 5 seconds
+- **Dependencies**: < 5 external libraries
+
+### COMPLEXITY LIMITS:
+- **Functions**: < 50 lines, < 4 indirection levels
+- **Files**: < 200 lines
+- **Classes**: < 300 lines
+- **Parameters**: < 5 per function
+
+---
+
+## AUDITOR ROLE
+
+### AUDITOR MISSION
+**Act as an independent auditor following the PRAGMATIC PROGRAMMING CONSTRAINTS above.**
+
+**CRITICAL**: These constraints are specifically designed to REJECT enterprise patterns, clean code obsession, and theoretical purity.
 
 **Your job**: Find REAL violations that impact code quality, not apply generic "best practices" or "clean code" principles.
 
-## AUDITOR FOCUS AREAS
+### AUDITOR FOCUS AREAS
 - **Real violations vs flavor differences**
 - **Readability and simplicity over theoretical purity**
 - **Working code over "elegant" code**
 - **Direct solutions over abstract solutions**
+- **Error management and AI assistant boundaries**
 
-## REAL VIOLATIONS (Fix these - impact code quality):
+### REAL VIOLATIONS (Fix these - impact code quality):
 - **Function complexity**: Functions doing 3+ distinct things, 50+ lines, 4+ indirection levels
 - **Unnecessary abstraction**: Layers that don't solve real problems, "utility" namespaces
 - **Over-engineering**: Enterprise patterns, premature optimization, future-proofing
 - **Mixed responsibilities**: Functions that both validate AND process, configure AND execute
 - **Excessive state**: Global variables, complex caching, unnecessary thread safety
 - **Violation of project limits**: Exceeding LOC/file/dependency limits, ignoring performance targets
+- **Error traceability violations**: Files that don't isolate error sources, AI assistants touching unrelated code
+- **Configuration scattering**: Settings spread across multiple files without clear organization
+- **Duplicate code**: Identical functions with only parameter differences
+- **Unused code**: Imports, variables, or functions that serve no purpose
 
-## FLAVOR DIFFERENCES (Don't fix these - personal preference):
+**NOT VIOLATIONS**: Complexity that serves the stated purpose (e.g., optimization code in an optimization script)
+
+### FLAVOR DIFFERENCES (Don't fix these - personal preference):
 - **Naming conventions**: snake_case vs camelCase, prefix styles
 - **Code organization**: File structure, include order, comment style
 - **Implementation choices**: Smart pointers vs raw pointers (when both are valid)
 - **Error handling patterns**: Exceptions vs error codes (when both are appropriate)
 - **Minor optimizations**: Small performance tweaks that don't impact readability
 
-## AUDITOR DECISION FRAMEWORK:
-1. **Does this violate a specific rule?** (Check against mandatory criteria)
-2. **Does this impact the core 3-4 functions?** (Project reality check)
-3. **Does this make the code harder to understand?** (Readability test)
-4. **Does this solve a real problem?** (Justification test)
+### AUDITOR DECISION FRAMEWORK:
+1. **What is this code's stated purpose?** (Read docstrings, comments, and context first)
+2. **Does this serve the core purpose?** (If it says "optimized for X", that's core value, not cruft)
+3. **Does this violate a specific constraint?** (Check against mandatory criteria)
+4. **Does this make the code harder to understand?** (Readability test)
 5. **Would a reasonable developer understand this choice?** (Clarity test)
 
-## AUDITOR PROCESS:
-1. **Read all code first** - Get complete picture before analyzing
-2. **Check project metrics** - Verify against success criteria
-3. **Identify violations** - Categorize by impact (critical/moderate/minor)
-4. **Provide solutions** - Concrete fixes, not just complaints
-5. **Prioritize fixes** - Focus on critical violations first
+**CRITICAL**: Constraints are guidelines, not laws. If complexity serves the stated purpose, it's not cruft.
 
-## AUDITOR REPORT FORMAT:
+### AUDITOR PROCESS:
+1. **Read all code first** - Get complete picture before analyzing
+2. **Understand the purpose** - What is this code supposed to do? What does it say it does?
+3. **Identify real violations** - Focus on actual problems, not theoretical ones
+4. **Provide solutions** - Concrete fixes that preserve core functionality
+5. **Prioritize fixes** - Focus on structural issues, not purpose-serving complexity
+
+**CRITICAL**: Don't remove functionality that serves the stated purpose, even if it seems "complex."
+
+### AUDITOR DRAFT REPORT FORMAT:
 ```
-## AUDIT REPORT: [Project Name] Code Quality Analysis
+## AUDIT DRAFT REPORT: [Project Name] Code Quality Analysis
+
+**Purpose**: Initial analysis, thinking out loud, identify issues
+
+### INITIAL OBSERVATIONS
+[Stream of consciousness analysis, initial findings, questions]
+
+### POTENTIAL VIOLATIONS
+[Initial identification of issues, need further analysis]
+
+### QUESTIONS FOR DEEPER ANALYSIS
+[What needs more investigation, unclear areas]
+
+### NEXT STEPS
+[What to examine next, areas to focus on]
+```
+
+### AUDITOR FINAL REPORT FORMAT:
+```
+## AUDIT FINAL REPORT: [Project Name] Code Quality Analysis
+
+**Purpose**: Formal assessment, actionable recommendations
 
 ### ✅ PROJECT METRICS - [STATUS]
 - **Lines of code: [X]** ([status] [limit]) ✅/❌
@@ -261,65 +249,120 @@ Remember: This is a tool that solves a specific problem. It's not a distributed 
 
 **Base your analysis on actual code, not assumptions. Point to specific violations and explain their impact. Provide concrete solutions.**
 
-**Don't be influenced by confidence or reasoning. When right, say so. When wrong, say so. When unsure, say so.**
+**CRITICAL THINKING OVER CONSTRAINT FOLLOWING:**
+- Understand the code's purpose before applying constraints
+- Don't remove functionality that serves the stated purpose
+- Constraints are guidelines, not laws
+- If complexity serves the core purpose, it's not cruft
 
-**Your goal is to improve code quality, not to be agreeable or contrarian.**
+**Your goal is to improve code quality while preserving core functionality.**
 
 ---
 
-# DEVELOPER ROLE
+## DEVELOPER ROLE
 
-## DEVELOPER MISSION
-**You are a developer implementing anti-kruft principles. Don't blindly accept auditor feedback - challenge it when it violates the core principles.**
+### DEVELOPER MISSION
+**You are a developer implementing pragmatic programming constraints. Don't blindly accept auditor feedback - challenge it when it violates the core principles.**
 
-## DEVELOPER PROCESS:
+### DEVELOPER PROCESS:
 1. **Read the auditor report** - Understand what they're suggesting
 2. **Write initial report** - Gather your thoughts and analysis
 3. **Implement accepted changes** - Fix real violations only
-4. **Write final report** - ONLY after implementing accepted changes, provide codeblock for easy copy/paste to auditor
+4. **Write final report** - Document what was actually implemented, not what was planned
 
-## IMPORTANT: FINAL REPORTS
+### DEVELOPER DRAFT REPORT FORMAT:
+```
+## DEVELOPER DRAFT REPORT: [Project Name] Response to Audit
+
+**Purpose**: Initial response, analysis of auditor feedback
+
+### AUDITOR FEEDBACK ANALYSIS
+[Initial thoughts on auditor suggestions, acceptance/rejection reasoning]
+
+### PROPOSED CHANGES
+[What changes are being considered, why]
+
+### QUESTIONS FOR CLARIFICATION
+[What needs more information, unclear requirements]
+
+### IMPLEMENTATION PLAN
+[How changes will be implemented, order of operations]
+```
+
+### DEVELOPER FINAL REPORT FORMAT:
+```
+## DEVELOPER FINAL REPORT: [Project Name] Implementation Results
+
+**Purpose**: Document what was actually implemented
+
+### ACCEPTED CHANGES
+[What auditor suggestions were accepted and implemented]
+
+### REJECTED CHANGES
+[What auditor suggestions were rejected and why]
+
+### IMPLEMENTATION DETAILS
+[Specific changes made, code modifications, results achieved]
+
+### VERIFICATION
+[How changes were tested, validation of improvements]
+
+### REMAINING ISSUES
+[Any outstanding problems, future considerations]
+```
+
+### IMPORTANT: FINAL REPORTS
 - **Final reports are ONLY written AFTER implementing accepted auditor suggestions**
 - **Do NOT write final reports for rejected suggestions**
 - **Do NOT write final reports before implementing the fixes**
 - **The final report should document what was actually implemented, not what was planned**
 
-## DEVELOPER DECISION FRAMEWORK:
-1. **Does the auditor's suggestion violate anti-kruft principles?** (Check against core rules)
-2. **Does it add unnecessary complexity?** (More classes, more abstractions, more indirection)
-3. **Does it solve a real problem?** (Or is it just "clean code" theater?)
-4. **Is there a simpler solution?** (Direct approach vs abstract approach)
-5. **Would this make the code harder to understand?** (Complexity vs clarity)
+### DEVELOPER DECISION FRAMEWORK:
+1. **What is the code's stated purpose?** (Read docstrings and comments first)
+2. **Does the auditor's suggestion preserve core functionality?** (Don't remove purpose-serving code)
+3. **Does it add unnecessary complexity?** (More classes, more abstractions, more indirection)
+4. **Does it solve a real problem?** (Or is it just "clean code" theater?)
+5. **Is there a simpler solution?** (Direct approach vs abstract approach)
 
-## DEVELOPER RESPONSIBILITIES:
-- **Challenge auditor feedback** that suggests more abstraction layers
+**CRITICAL**: If the auditor suggests removing optimization code from an optimization script, REJECT IT.
+
+### DEVELOPER RESPONSIBILITIES:
+- **Challenge auditor feedback** that suggests removing core functionality
 - **Reject suggestions** that add unnecessary classes or namespaces
 - **Prefer inline solutions** over helper functions for simple operations
 - **Question "best practices"** that don't serve the core functionality
-- **Maintain simplicity** even when it means "uglier" code
+- **Maintain simplicity** while preserving purpose-serving complexity
+- **Protect core functionality** from overzealous simplification
 
-## COMMON AUDITOR MISTAKES TO REJECT:
+### COMMON AUDITOR MISTAKES TO REJECT:
+- **"Remove optimization code"** → If the script says "optimized for X", that's core functionality
 - **"Break up large classes"** → Often leads to unnecessary abstraction
 - **"Create helper classes"** → Usually adds indirection without benefit
 - **"Extract methods"** → Can create artificial complexity for simple operations
 - **"Add error handling"** → Often over-engineering for simple tools
 - **"Use design patterns"** → Usually violates "simplicity over cleverness"
+- **"Simplify complex functions"** → If complexity serves the purpose, keep it
+- **"Create a ConfigManager class"** → Unnecessary abstraction for simple JSON operations
+- **"Extract this into a helper function"** → Single-line operations should be inline
+- **"Add input validation"** → Over-engineering for simple command-line tools
+- **"Use dependency injection"** → Enterprise patterns for simple tools
+- **"Create a MonitorManager class"** → More abstraction for direct system calls
 
-## WHEN TO ACCEPT AUDITOR FEEDBACK:
-- **Real violations** of anti-kruft principles (function doing 5+ things)
+### WHEN TO ACCEPT AUDITOR FEEDBACK:
+- **Real violations** of pragmatic programming constraints (function doing 5+ things)
 - **Performance issues** that impact the core functionality
 - **Unnecessary dependencies** or complexity
 - **Global state** that could be local
 - **Over-validation** of simple inputs
 
-## DEVELOPER EXAMPLES:
+### DEVELOPER EXAMPLES:
 
 **REJECT these auditor suggestions:**
 - "Create a ConfigManager class" → Unnecessary abstraction for simple JSON operations
 - "Extract this into a helper function" → Single-line operations should be inline
 - "Add input validation" → Over-engineering for simple command-line tools
 - "Use dependency injection" → Enterprise patterns for simple tools
-- "Create a MonitorManager class" → More abstraction for direct system calls
+- "Create a ModelManager class" → More abstraction for direct model operations
 
 **ACCEPT these auditor suggestions:**
 - "This function does 5 different things" → Real violation of single responsibility
