@@ -1,6 +1,6 @@
 # Maintainer: trahloc <github@trahloc.com>
 pkgname=autowaybar-ai
-pkgver=1.1.0
+pkgver=1.1.1
 pkgrel=1
 pkgdesc="AI-enhanced version of autowaybar - program that hides waybar based on cursor position for Hyprland"
 arch=('x86_64')

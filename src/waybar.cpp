@@ -26,6 +26,9 @@ static std::atomic<bool> g_interrupt_request{false};
 
 // Global workspace tracking
 static std::atomic<int> g_current_workspace{1};
+static std::atomic<bool> g_handling_workspace_change{false};
+static std::atomic<std::chrono::steady_clock::time_point> g_last_workspace_change{std::chrono::steady_clock::now()};
+static std::atomic<std::chrono::steady_clock::time_point> g_workspace_show_start{std::chrono::steady_clock::now()};
 
 // Auxiliary functions
 
@@ -151,9 +154,6 @@ auto Waybar::restartWaybar() -> pid_t {
         throw std::runtime_error("Waybar is unstable - crashed 3 times in 30 seconds. Giving up.");
     }
     
-    // Enforce single waybar policy
-    enforceSingleWaybar();
-    
     // Try to start waybar
     pid_t child_pid = fork();
     if (child_pid == 0) {
@@ -224,49 +224,44 @@ auto Waybar::initPidOrRestart() -> pid_t {
         return restartWaybar();
     }
     
-    // Check if there are multiple waybar processes - enforce "one waybar only"
-    pid_str.erase(pid_str.find_last_not_of(" \t\n\r") + 1);
+    // Always kill existing waybar processes and start our own
+    log_message(INFO, "Existing waybar process(es) detected, killing and starting own child process...\n");
     
-    // Count valid PIDs
+    // Kill all existing waybar processes
+    pid_str.erase(pid_str.find_last_not_of(" \t\n\r") + 1);
     std::istringstream pid_stream(pid_str);
     std::string pid_token;
-    int valid_pid_count = 0;
     while (pid_stream >> pid_token) {
         try {
-            pid_t pid = std::stoi(pid_token);
-            if (kill(pid, 0) == 0) {
-                valid_pid_count++;
+            pid_t existing_pid = std::stoi(pid_token);
+            
+            // Verify the existing process is actually running
+            if (kill(existing_pid, 0) == 0) {
+                log_message(INFO, "Killing existing waybar process (PID: {})\n", existing_pid);
+                if (kill(existing_pid, SIGTERM) == -1) {
+                    log_message(WARN, "Failed to send SIGTERM to waybar process {}: {}\n", existing_pid, strerror(errno));
+                }
+                
+                // Wait for process to die
+                int attempts = 0;
+                while (kill(existing_pid, 0) == 0 && attempts < 10) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    attempts++;
+                }
+                
+                // Force kill if still running
+                if (kill(existing_pid, 0) == 0) {
+                    log_message(WARN, "Force killing waybar process {}\n", existing_pid);
+                    kill(existing_pid, SIGKILL);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
             }
         } catch (const std::exception& e) {
-            // Ignore parsing errors
+            log_message(WARN, "Failed to parse PID: {}\n", pid_token);
         }
     }
     
-    if (valid_pid_count == 0) {
-        log_message(WARN, "No valid waybar processes found, attempting to start...\n");
-        return restartWaybar();
-    } else if (valid_pid_count == 1) {
-        // Only one waybar process - use it
-        std::istringstream pid_stream2(pid_str);
-        while (pid_stream2 >> pid_token) {
-            try {
-                pid_t pid = std::stoi(pid_token);
-                if (kill(pid, 0) == 0) {
-                    log_message(INFO, "Using existing waybar process (PID: {})\n", pid);
-                    return pid;
-                }
-            } catch (const std::exception& e) {
-                // Continue to next PID
-            }
-        }
-    } else {
-        // Multiple waybar processes - kill all and restart
-        log_message(WARN, "Multiple waybar processes detected ({}), enforcing single waybar policy...\n", valid_pid_count);
-        return restartWaybar();
-    }
-    
-    // Fallback
-    log_message(WARN, "No valid waybar processes found, attempting to start...\n");
+    // Start our own waybar process
     return restartWaybar();
 }
 
@@ -300,10 +295,7 @@ Waybar::Waybar(const std::string &mode, int threshold, int verbose, const std::s
       m_crash_window_start(std::chrono::steady_clock::now()) {
     // Crash tracking already initialized in member initializer list
     
-    // Enforce single waybar policy FIRST - kill multiple waybars before any operations
-    enforceSingleWaybar();
-    
-    // Now get waybar PID
+    // Get waybar PID (will kill existing processes and start our own)
     m_waybar_pid = initPidOrRestart();
     
     initialize();
@@ -743,6 +735,14 @@ auto Waybar::processAllMonitorsVisibility(int /* root_x */, int root_y, bool is_
 }
 
 auto Waybar::processMonitorVisibility(const monitor_info_t& mon, int root_y, bool is_visible) -> bool {
+    // Don't process normal visibility logic if we're handling a workspace change
+    if (g_handling_workspace_change.load(std::memory_order_acquire)) {
+        if (m_verbose_level >= 2) {
+            log_message(TRACE, "Skipping normal visibility logic - workspace change in progress\n");
+        }
+        return is_visible; // Keep current state
+    }
+    
     const int local_bar_threshold = mon.y_coord + m_bar_threshold;
     
     if (!is_visible && shouldShowWaybar(mon, root_y)) {
@@ -939,6 +939,14 @@ auto Waybar::isCursorInCurrentMonitor(const monitor_info_t& mon, int mouse_x, in
 }
 
 auto Waybar::processCurrentMonitor(monitor_info_t& mon, int mouse_x, int mouse_y) -> bool {
+    // Don't process normal visibility logic if we're handling a workspace change
+    if (g_handling_workspace_change.load(std::memory_order_acquire)) {
+        if (m_verbose_level >= 2) {
+            log_message(TRACE, "Skipping focused mode logic - workspace change in progress\n");
+        }
+        return false; // No changes needed
+    }
+    
     if (!mon.hidden) {
         return handleVisibleMonitor(mon, mouse_x, mouse_y);
     } else {
@@ -1008,46 +1016,88 @@ auto Waybar::getCurrentWorkspace() const -> int {
 }
 
 auto Waybar::checkWorkspaceChange() const -> bool {
+    // Don't check for workspace changes if we're already handling one
+    if (g_handling_workspace_change.load(std::memory_order_acquire)) {
+        if (m_verbose_level >= 2) {
+            log_message(TRACE, "Skipping workspace check - already handling change\n");
+        }
+        return false;
+    }
+    
+    // Debouncing: don't check for workspace changes too frequently
+    auto now = std::chrono::steady_clock::now();
+    auto last_change = g_last_workspace_change.load(std::memory_order_acquire);
+    if (now - last_change < std::chrono::milliseconds(500)) {
+        if (m_verbose_level >= 2) {
+            log_message(TRACE, "Skipping workspace check - too soon after last change\n");
+        }
+        return false;
+    }
+    
     int current_workspace = getCurrentWorkspace();
     int previous_workspace = g_current_workspace.load(std::memory_order_acquire);
     
+    if (m_verbose_level >= 2) {
+        log_message(TRACE, "Workspace check: current={}, previous={}\n", current_workspace, previous_workspace);
+    }
+    
     if (current_workspace != previous_workspace) {
         g_current_workspace.store(current_workspace, std::memory_order_release);
+        g_last_workspace_change.store(now, std::memory_order_release);
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Workspace change detected: {} -> {}\n", previous_workspace, current_workspace);
+        }
         return true; // workspace changed
     }
     return false; // no change
 }
 
 auto Waybar::handleWorkspaceChange() -> void {
+    static int handle_count = 0;
+    handle_count++;
+    
+    auto now = std::chrono::steady_clock::now();
+    auto last_show_start = g_workspace_show_start.load(std::memory_order_acquire);
+    
+    // Check if we're already showing waybar for a workspace change
+    if (now - last_show_start < Constants::WORKSPACE_SHOW_DURATION) {
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "handleWorkspaceChange() #{} - waybar already showing for workspace change, skipping\n", handle_count);
+        }
+        return; // Already showing waybar for workspace change
+    }
+    
     int current_workspace = g_current_workspace.load(std::memory_order_acquire);
     if (m_verbose_level >= 1) {
-        log_message(LOG, "Workspace changed to workspace {}\n", current_workspace);
-    }
-    showWaybarTemporarily();
-}
-
-auto Waybar::showWaybarTemporarily() -> void {
-    if (m_verbose_level >= 1) {
-        log_message(LOG, "Showing waybar temporarily for {} seconds after workspace change\n", Constants::WORKSPACE_SHOW_DURATION.count());
+        log_message(LOG, "handleWorkspaceChange() #{} - workspace changed to workspace {}\n", handle_count, current_workspace);
     }
     
-    // Show waybar
+    // Update the show start time
+    g_workspace_show_start.store(now, std::memory_order_release);
+    
+    // Show waybar immediately
     showWaybar();
     
-    // Wait for the specified duration
-    auto start_time = std::chrono::steady_clock::now();
-    while (std::chrono::steady_clock::now() - start_time < Constants::WORKSPACE_SHOW_DURATION) {
-        if (g_interrupt_request.load(std::memory_order_acquire)) {
-            break; // exit early if interrupted
+    // Start the hide timer
+    std::thread([this, handle_count]() {
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Thread #{} starting 3-second delay\n", handle_count);
         }
-        std::this_thread::sleep_for(100ms);
-    }
-    
-    // Hide waybar after duration
-    hideWaybar();
-    if (m_verbose_level >= 1) {
-        log_message(LOG, "Waybar hidden after workspace change\n");
-    }
+        
+        // Wait for the specified duration
+        std::this_thread::sleep_for(Constants::WORKSPACE_SHOW_DURATION);
+        
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Thread #{} - hiding waybar after delay\n", handle_count);
+        }
+        
+        // Hide waybar after duration
+        hideWaybar();
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Waybar hidden after workspace change (thread #{})\n", handle_count);
+        }
+    }).detach();
 }
+
 
 

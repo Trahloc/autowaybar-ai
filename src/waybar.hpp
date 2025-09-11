@@ -123,7 +123,6 @@ private:
     auto getCurrentWorkspace() const -> int;
     auto checkWorkspaceChange() const -> bool;
     auto handleWorkspaceChange() -> void;
-    auto showWaybarTemporarily() -> void;
 
     // monitors
     auto getMonitor(const std::string &name) -> monitor_info_t&; // retrieves the monitor info by a name
@@ -189,7 +188,7 @@ inline auto printHelp() -> void {
         std::string_view description;
     };
 
-    print(fg(color::yellow) | emphasis::bold, "autowaybar-ai v1.1.0: \n");
+    print(fg(color::yellow) | emphasis::bold, "autowaybar-ai v1.1.1: \n");
     print(fg(color::cyan), "AI-enhanced program to manage visibility modes for waybar in Hyprland\n\n");
     print(fg(color::yellow) | emphasis::bold, "Usage:\n");
 
