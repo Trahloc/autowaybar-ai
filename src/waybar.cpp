@@ -15,6 +15,7 @@
 #include <sstream>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/types.h>
 #include "utils.hpp"
 #include "Hyprland.hpp"
 #include <filesystem>
@@ -22,7 +23,7 @@
 namespace fs = std::filesystem;
 
 // Global interrupt flag for signal handlers
-static std::atomic<bool> g_interrupt_request{false};
+std::atomic<bool> g_interrupt_request{false};
 
 // Global workspace tracking
 static std::atomic<int> g_current_workspace{1};
@@ -77,6 +78,169 @@ auto Waybar::checkWaybarCrashLimit() -> bool {
     }
     
     return false; // Within limits
+}
+
+auto Waybar::isEnvironmentReady() -> bool {
+    // Check if we're in a Wayland environment
+    const char* wayland_display = std::getenv("WAYLAND_DISPLAY");
+    if (!wayland_display) {
+        logToFile("WAYLAND_DISPLAY not set - environment not ready\n");
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "WAYLAND_DISPLAY not set - environment not ready\n");
+        }
+        return false;
+    }
+    
+    // Check if Hyprland is running
+    if (!isHyprlandRunning()) {
+        logToFile("Hyprland not running - environment not ready\n");
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Hyprland not running - environment not ready\n");
+        }
+        return false;
+    }
+    
+    // Check if we can get monitor information (basic Hyprland functionality)
+    try {
+        auto monitors = getMonitorsInfo();
+        if (monitors.empty()) {
+            logToFile("No monitors detected - environment not ready\n");
+            if (m_verbose_level >= 1) {
+                log_message(LOG, "No monitors detected - environment not ready\n");
+            }
+            return false;
+        }
+    } catch (const std::exception& e) {
+        logToFile("Failed to get monitor info - environment not ready: " + std::string(e.what()) + "\n");
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Failed to get monitor info - environment not ready: {}\n", e.what());
+        }
+        return false;
+    }
+    
+    // Check if waybar binary exists and is executable
+    if (access("/usr/bin/waybar", X_OK) != 0) {
+        logToFile("Waybar binary not found or not executable - environment not ready\n");
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Waybar binary not found or not executable - environment not ready\n");
+        }
+        return false;
+    }
+    
+    // Test if waybar can actually start (real Wayland session test)
+    pid_t test_pid = fork();
+    if (test_pid == 0) {
+        // Child process - test waybar startup (without --help to test real startup)
+        execlp("waybar", "waybar", nullptr);
+        std::exit(1); // If execlp fails
+    } else if (test_pid > 0) {
+        // Parent process - wait briefly for waybar to start
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        
+        // Check if waybar is running
+        std::string pid_str = execute_command("/usr/sbin/pidof waybar");
+        if (pid_str.empty()) {
+            // Waybar didn't start - kill the test process and fail
+            kill(test_pid, SIGTERM);
+            waitpid(test_pid, nullptr, 0);
+            logToFile("Waybar test startup failed - environment not ready\n");
+            if (m_verbose_level >= 1) {
+                log_message(LOG, "Waybar test startup failed - environment not ready\n");
+            }
+            return false;
+        } else {
+            // Waybar started successfully - kill it and continue
+            kill(test_pid, SIGTERM);
+            waitpid(test_pid, nullptr, 0);
+        }
+    } else {
+        // Fork failed
+        logToFile("Failed to fork for waybar test - environment not ready\n");
+        if (m_verbose_level >= 1) {
+            log_message(LOG, "Failed to fork for waybar test - environment not ready\n");
+        }
+        return false;
+    }
+    
+    logToFile("Environment appears ready for waybar\n");
+    if (m_verbose_level >= 1) {
+        log_message(LOG, "Environment appears ready for waybar\n");
+    }
+    return true;
+}
+
+auto Waybar::waitForEnvironmentReady() -> bool {
+    auto now = std::chrono::steady_clock::now();
+    
+    // Initialize retry tracking if this is the first attempt
+    if (m_environment_retry_count == 0) {
+        m_environment_retry_start = now;
+        logToFile("Waiting for environment to be ready for waybar...\n");
+        log_message(INFO, "Waiting for environment to be ready for waybar...\n");
+    }
+    
+    // Check if we've exceeded the timeout
+    if (now - m_environment_retry_start > Constants::ENVIRONMENT_RETRY_TIMEOUT) {
+        logToFile("Environment not ready after 10 minutes - giving up\n");
+        log_message(ERR, "Environment not ready after {} minutes - giving up\n", 
+                   std::chrono::duration_cast<std::chrono::minutes>(Constants::ENVIRONMENT_RETRY_TIMEOUT).count());
+        return false;
+    }
+    
+    // Check if environment is ready
+    if (isEnvironmentReady()) {
+        if (m_environment_retry_count > 0) {
+            logToFile("Environment is now ready after " + std::to_string(m_environment_retry_count) + " attempts\n");
+            log_message(INFO, "Environment is now ready after {} attempts\n", m_environment_retry_count);
+        }
+        return true;
+    }
+    
+    // Environment not ready, increment retry count and wait
+    m_environment_retry_count++;
+    logToFile("Environment not ready (attempt " + std::to_string(m_environment_retry_count) + "), waiting 10 seconds before retry...\n");
+    log_message(LOG, "Environment not ready (attempt {}), waiting {} seconds before retry...\n", 
+               m_environment_retry_count, 
+               std::chrono::duration_cast<std::chrono::seconds>(Constants::ENVIRONMENT_RETRY_INTERVAL).count());
+    
+    std::this_thread::sleep_for(Constants::ENVIRONMENT_RETRY_INTERVAL);
+    return waitForEnvironmentReady(); // Recursive call for next attempt
+}
+
+auto Waybar::initLogFile() -> void {
+    // Create log file path in XDG_RUNTIME_DIR
+    const char* xdg_runtime_dir = std::getenv("XDG_RUNTIME_DIR");
+    if (!xdg_runtime_dir) {
+        // Fallback to /tmp if XDG_RUNTIME_DIR not set
+        m_log_file_path = "/tmp/autowaybar.log";
+    } else {
+        m_log_file_path = std::string(xdg_runtime_dir) + "/autowaybar.log";
+    }
+    
+    // Open log file (append mode - system will clean up on reboot)
+    m_log_file.open(m_log_file_path, std::ios::out | std::ios::app);
+    if (!m_log_file.is_open()) {
+        // If we can't open the log file, just continue without logging
+        m_log_file_path.clear();
+        return;
+    }
+    
+    // Write header with timestamp
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    m_log_file << "=== autowaybar-ai v1.1.2 log started at " 
+               << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S") 
+               << " ===\n";
+    m_log_file.flush();
+}
+
+auto Waybar::logToFile(const std::string& message) -> void {
+    if (m_log_file.is_open()) {
+        auto now = std::chrono::system_clock::now();
+        auto time_t = std::chrono::system_clock::to_time_t(now);
+        m_log_file << "[" << std::put_time(std::localtime(&time_t), "%H:%M:%S") << "] " << message;
+        m_log_file.flush();
+    }
 }
 
 auto Waybar::enforceSingleWaybar() -> void {
@@ -140,7 +304,14 @@ auto Waybar::enforceSingleWaybar() -> void {
 }
 
 auto Waybar::restartWaybar() -> pid_t {
+    logToFile("Starting waybar...\n");
     log_message(INFO, "Starting waybar...\n");
+    
+    // First, check if environment is ready
+    if (!waitForEnvironmentReady()) {
+        logToFile("Environment not ready for waybar after timeout\n");
+        throw std::runtime_error("Environment not ready for waybar after timeout");
+    }
     
     // Reset crash count if it's been more than 30 seconds since last attempt
     auto now = std::chrono::steady_clock::now();
@@ -151,6 +322,7 @@ auto Waybar::restartWaybar() -> pid_t {
     
     // Check crash limit before attempting restart
     if (checkWaybarCrashLimit()) {
+        logToFile("Waybar is unstable - crashed 3 times in 30 seconds. Giving up.\n");
         throw std::runtime_error("Waybar is unstable - crashed 3 times in 30 seconds. Giving up.");
     }
     
@@ -170,23 +342,42 @@ auto Waybar::restartWaybar() -> pid_t {
         if (!pid_str.empty()) {
             pid_str.erase(pid_str.find_last_not_of(" \t\n\r") + 1);
             pid_t actual_pid = std::stoi(pid_str);
+            logToFile("Waybar started successfully with PID: " + std::to_string(actual_pid) + "\n");
             log_message(INFO, "Waybar started successfully with PID: {}\n", actual_pid);
             return actual_pid;
         } else {
-            // Waybar failed to start - increment crash count
+            // Waybar failed to start - check if it's an environment issue
+            if (!isEnvironmentReady()) {
+                // Environment became unready - don't count this as a crash
+                logToFile("Environment became unready during waybar startup - not counting as crash\n");
+                log_message(WARN, "Environment became unready during waybar startup - not counting as crash\n");
+                throw std::runtime_error("Environment became unready during waybar startup");
+            } else {
+                // Environment is ready but waybar failed - count as crash
+                if (m_waybar_crash_count == 0) {
+                    m_crash_window_start = std::chrono::steady_clock::now();
+                }
+                m_waybar_crash_count++;
+                logToFile("Failed to start waybar - process not found after startup (crash count: " + std::to_string(m_waybar_crash_count) + ")\n");
+                throw std::runtime_error("Failed to start waybar - process not found after startup");
+            }
+        }
+    } else {
+        // Fork failed - check if it's an environment issue
+        if (!isEnvironmentReady()) {
+            // Environment became unready - don't count this as a crash
+            logToFile("Environment became unready during fork - not counting as crash\n");
+            log_message(WARN, "Environment became unready during fork - not counting as crash\n");
+            throw std::runtime_error("Environment became unready during fork");
+        } else {
+            // Environment is ready but fork failed - count as crash
             if (m_waybar_crash_count == 0) {
                 m_crash_window_start = std::chrono::steady_clock::now();
             }
             m_waybar_crash_count++;
-            throw std::runtime_error("Failed to start waybar - process not found after startup");
+            logToFile("Failed to fork process for waybar start: " + std::string(strerror(errno)) + " (crash count: " + std::to_string(m_waybar_crash_count) + ")\n");
+            throw std::runtime_error("Failed to fork process for waybar start: " + std::string(strerror(errno)));
         }
-    } else {
-        // Fork failed - increment crash count
-        if (m_waybar_crash_count == 0) {
-            m_crash_window_start = std::chrono::steady_clock::now();
-        }
-        m_waybar_crash_count++;
-        throw std::runtime_error("Failed to fork process for waybar start: " + std::string(strerror(errno)));
     }
 }
 
@@ -218,6 +409,11 @@ auto Waybar::initPid() const -> pid_t {
 }
 
 auto Waybar::initPidOrRestart() -> pid_t {
+    // First check if environment is ready
+    if (!waitForEnvironmentReady()) {
+        throw std::runtime_error("Environment not ready for waybar after timeout");
+    }
+    
     std::string pid_str = execute_command("/usr/sbin/pidof waybar");
     if (pid_str.empty()) {
         log_message(INFO, "Waybar not running, attempting to start...\n");
@@ -295,6 +491,10 @@ Waybar::Waybar(const std::string &mode, int threshold, int verbose, const std::s
       m_crash_window_start(std::chrono::steady_clock::now()) {
     // Crash tracking already initialized in member initializer list
     
+    // Initialize logging first
+    initLogFile();
+    logToFile("autowaybar starting with mode: " + mode + "\n");
+    
     // Get waybar PID (will kill existing processes and start our own)
     m_waybar_pid = initPidOrRestart();
     
@@ -328,8 +528,16 @@ Waybar::~Waybar() {
         }
         reloadPid();
     } catch (const std::exception& e) {
+        logToFile("Error during cleanup: " + std::string(e.what()) + "\n");
         log_message(ERR, "Error during cleanup: {}", e.what());
     }
+    
+    // Close log file
+    if (m_log_file.is_open()) {
+        logToFile("autowaybar shutting down\n");
+        m_log_file.close();
+    }
+    
     cleanupSignals();
 }
 
@@ -861,6 +1069,31 @@ auto Waybar::reloadPid() -> void {
     }
 }
 
+auto Waybar::shutdown() -> void {
+    log_message(INFO, "Shutting down waybar process (PID: {})\n", m_waybar_pid);
+    
+    // First try graceful termination with SIGTERM
+    if (kill(m_waybar_pid, SIGTERM) == -1) {
+        if (errno != ESRCH) {
+            log_message(WARN, "Failed to send SIGTERM to waybar process {}: {}\n", m_waybar_pid, strerror(errno));
+        }
+    } else {
+        // Wait for process to die gracefully
+        int attempts = 0;
+        while (kill(m_waybar_pid, 0) == 0 && attempts < 10) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            attempts++;
+        }
+        
+        // Force kill if still running
+        if (kill(m_waybar_pid, 0) == 0) {
+            log_message(WARN, "Force killing waybar process {}\n", m_waybar_pid);
+            kill(m_waybar_pid, SIGKILL);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+}
+
 
 // Removed unnecessary helper function - logic inlined where needed
 
@@ -1057,44 +1290,43 @@ auto Waybar::handleWorkspaceChange() -> void {
     handle_count++;
     
     auto now = std::chrono::steady_clock::now();
-    auto last_show_start = g_workspace_show_start.load(std::memory_order_acquire);
-    
-    // Check if we're already showing waybar for a workspace change
-    if (now - last_show_start < Constants::WORKSPACE_SHOW_DURATION) {
-        if (m_verbose_level >= 1) {
-            log_message(LOG, "handleWorkspaceChange() #{} - waybar already showing for workspace change, skipping\n", handle_count);
-        }
-        return; // Already showing waybar for workspace change
-    }
-    
     int current_workspace = g_current_workspace.load(std::memory_order_acquire);
+    
     if (m_verbose_level >= 1) {
         log_message(LOG, "handleWorkspaceChange() #{} - workspace changed to workspace {}\n", handle_count, current_workspace);
     }
     
-    // Update the show start time
+    // Always update the show start time and show waybar for new workspace changes
     g_workspace_show_start.store(now, std::memory_order_release);
-    
-    // Show waybar immediately
     showWaybar();
     
     // Start the hide timer
-    std::thread([this, handle_count]() {
+    int local_handle_count = handle_count; // Make local copy to avoid capturing static variable
+    std::thread([this, local_handle_count, show_start_time = now]() {
         if (m_verbose_level >= 1) {
-            log_message(LOG, "Thread #{} starting 3-second delay\n", handle_count);
+            log_message(LOG, "Thread #{} starting 1-second delay\n", local_handle_count);
         }
         
         // Wait for the specified duration
         std::this_thread::sleep_for(Constants::WORKSPACE_SHOW_DURATION);
         
+        // Check if this is still the most recent workspace change
+        auto current_show_start = g_workspace_show_start.load(std::memory_order_acquire);
+        if (current_show_start != show_start_time) {
+            if (m_verbose_level >= 1) {
+                log_message(LOG, "Thread #{} - newer workspace change detected, skipping hide\n", local_handle_count);
+            }
+            return; // A newer workspace change has occurred, don't hide
+        }
+        
         if (m_verbose_level >= 1) {
-            log_message(LOG, "Thread #{} - hiding waybar after delay\n", handle_count);
+            log_message(LOG, "Thread #{} - hiding waybar after delay\n", local_handle_count);
         }
         
         // Hide waybar after duration
         hideWaybar();
         if (m_verbose_level >= 1) {
-            log_message(LOG, "Waybar hidden after workspace change (thread #{})\n", handle_count);
+            log_message(LOG, "Waybar hidden after workspace change (thread #{})\n", local_handle_count);
         }
     }).detach();
 }

@@ -119,25 +119,15 @@ auto parseArguments(int argc, char* argv[]) -> Args {
 // Global waybar instance for signal handling
 static Waybar* g_waybar_instance = nullptr;
 
+// External reference to interrupt flag
+extern std::atomic<bool> g_interrupt_request;
+
 // Signal handler for cleanup
 auto cleanup_handler(int signal) -> void {
-    log_message(WARN, "Signal {} received, shutting down waybar...\n", signal);
+    log_message(WARN, "Signal {} received, initiating graceful shutdown...\n", signal);
     
-    if (g_waybar_instance) {
-        try {
-            // Restore original waybar config and reload
-            g_waybar_instance->restoreOriginal();
-            g_waybar_instance->reloadPid();
-        } catch (const std::exception& e) {
-            log_message(ERR, "Error during waybar cleanup: {}\n", e.what());
-        }
-    }
-    
-    // Remove PID file
-    removePidFile();
-    
-    // Exit cleanly
-    std::exit(0);
+    // Set the interrupt flag to signal all main loops to exit
+    g_interrupt_request.store(true, std::memory_order_release);
 }
 
 auto main(int argc, char *argv[]) -> int {
@@ -164,6 +154,17 @@ auto main(int argc, char *argv[]) -> int {
         Waybar bar(args.mode, args.threshold, args.verbose, config_dir);
         g_waybar_instance = &bar;  // Set global pointer for signal handler
         bar.run();
+        
+        // Cleanup after main loop exits
+        log_message(INFO, "Main loop exited, cleaning up...\n");
+        try {
+            // Restore original waybar config
+            bar.restoreOriginal();
+            // Properly shutdown waybar process
+            bar.shutdown();
+        } catch (const std::exception& e) {
+            log_message(ERR, "Error during waybar cleanup: {}\n", e.what());
+        }
         
         return EXIT_SUCCESS;
         

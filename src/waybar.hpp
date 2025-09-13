@@ -10,6 +10,7 @@
 #include <signal.h>
 #include "utils.hpp"
 #include <vector>
+#include <iomanip>
 
 using namespace std::chrono_literals;
 
@@ -27,10 +28,12 @@ namespace Constants {
     constexpr int MONITOR_MODE_PREFIX_LENGTH = 4;  // "mon:" prefix length
     constexpr int SINGLE_MONITOR_THRESHOLD = 1;    // fallback threshold for single monitor
     constexpr int CONFIG_FLAG_COUNT = 4;           // number of command line flags
-    constexpr auto WORKSPACE_SHOW_DURATION = 3s;   // how long to show waybar after workspace change
+    constexpr auto WORKSPACE_SHOW_DURATION = 1000ms;   // how long to show waybar after workspace change
     constexpr auto MOUSE_ACTIVATION_DELAY = 250ms; // how long mouse must be in activation zone
     constexpr int MAX_WAYBAR_CRASHES = 3;          // maximum waybar crashes before giving up
     constexpr auto WAYBAR_CRASH_WINDOW = 30s;      // time window for crash counting
+    constexpr auto ENVIRONMENT_RETRY_INTERVAL = 10s; // how long to wait between environment checks
+    constexpr auto ENVIRONMENT_RETRY_TIMEOUT = 10min; // how long to keep trying before giving up
 }
 
 // TYPES
@@ -72,6 +75,7 @@ public:
     auto reloadPid() -> void; // sigusr2
     auto restoreOriginal() -> void; // restore original waybar config
     auto setBarMode(BarMode mode); // setter for mode
+    auto shutdown() -> void; // properly terminate waybar process
 private:
     // modes
     auto hideAllMonitors(bool is_visible = true) -> void;
@@ -134,6 +138,10 @@ private:
     auto restartWaybar() -> pid_t;               // restarts waybar process
     auto checkWaybarCrashLimit() -> bool;       // checks if waybar has crashed too many times
     auto enforceSingleWaybar() -> void;         // enforces single waybar policy
+    auto isEnvironmentReady() -> bool;          // checks if Hyprland/Wayland environment is ready
+    auto waitForEnvironmentReady() -> bool;     // waits for environment to be ready with retry logic
+    auto initLogFile() -> void;                 // initialize single log file for diagnostics
+    auto logToFile(const std::string& message) -> void; // write message to log file
     
     // initialization
     auto initialize() -> void;
@@ -178,6 +186,14 @@ private:
     // Waybar crash tracking
     int m_waybar_crash_count = 0;
     std::chrono::steady_clock::time_point m_crash_window_start{};
+    
+    // Environment readiness tracking
+    int m_environment_retry_count = 0;
+    std::chrono::steady_clock::time_point m_environment_retry_start{};
+    
+    // Logging
+    std::string m_log_file_path;
+    std::ofstream m_log_file;
 };
 
 inline auto printHelp() -> void {
@@ -188,7 +204,7 @@ inline auto printHelp() -> void {
         std::string_view description;
     };
 
-    print(fg(color::yellow) | emphasis::bold, "autowaybar-ai v1.1.1: \n");
+    print(fg(color::yellow) | emphasis::bold, "autowaybar-ai v1.1.2: \n");
     print(fg(color::cyan), "AI-enhanced program to manage visibility modes for waybar in Hyprland\n\n");
     print(fg(color::yellow) | emphasis::bold, "Usage:\n");
 

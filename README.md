@@ -1,6 +1,8 @@
 ### Description
 **Fork of [autowaybar](https://github.com/Direwolfesp/autowaybar)** - A program that automatically hides waybar based on cursor position for Hyprland.
 
+**Version 1.1.2** - Reduced workspace switch delay to 1 second, fixed flickering on rapid workspace changes, and implemented proper Ctrl-C signal handling for clean shutdown.
+
 **Version 1.1.1** - Fixed double delay issue when switching workspaces with Super+1/2/3/4/5 keys.
 
 **Version 1.1.0** - Enhanced with single waybar enforcement and fail-fast error handling.
